@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+
+{% block title %}Tags - {{ library.name }} - Library Manager{% endblock %}
+
+{% block nav_extra %}
+<div class="ml-8 flex items-center space-x-4">
+    <span class="text-sm text-gray-600">{{ library.name }}</span>
+    <a href="/libraries/{{ library.id }}/browse" class="text-sm text-gray-600 hover:text-gray-900">Browse</a>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="flex justify-between items-center mb-8">
+        <h1 class="text-3xl font-bold text-gray-900">Tags</h1>
+        <button onclick="showCreateTagModal()" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md">
+            Create Tag
+        </button>
+    </div>
+    
+    <div id="tags-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <!-- Tags will be loaded here -->
+    </div>
+    
+    <div id="empty-state" class="text-center py-12 hidden">
+        <p class="text-gray-500 text-lg">No tags yet. Create one to get started!</p>
+    </div>
+</div>
+
+<!-- Create Tag Modal -->
+<div id="create-tag-modal" class="hidden fixed inset-0" style="display: none; z-index: 9999; background: rgba(0, 0, 0, 0.5);" onclick="if(event.target === this) hideCreateTagModal();">
+    <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 1rem; pointer-events: none;">
+        <div class="modal-content bg-white rounded-lg shadow-xl max-w-md w-full p-6" style="pointer-events: auto; position: relative; z-index: 10001;" onclick="event.stopPropagation();">
+            <h2 class="text-xl font-bold mb-4">Create New Tag</h2>
+            
+            <form id="create-tag-form" onsubmit="event.preventDefault(); createTag();">
+                <div class="mb-4">
+                    <label for="tag-name" class="block text-sm font-medium text-gray-700 mb-2">Tag Name</label>
+                    <input 
+                        type="text" 
+                        id="tag-name" 
+                        required
+                        minlength="1"
+                        maxlength="50"
+                        class="block w-full px-3 py-2 border border-gray-300 rounded-md"
+                        placeholder="e.g., Favorites, Vacation 2025"
+                    >
+                    <p class="text-xs text-gray-500 mt-1">Tags are case-sensitive</p>
+                </div>
+                
+                <div class="flex space-x-3">
+                    <button 
+                        type="submit"
+                        class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md"
+                    >
+                        Create
+                    </button>
+                    <button 
+                        type="button"
+                        onclick="hideCreateTagModal()"
+                        class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium py-2 px-4 rounded-md"
+                    >
+                        Cancel
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const LIBRARY_ID = '{{ library.id }}';
+let tags = [];
+
+async function loadTags() {
+    try {
+        const response = await fetch(`/api/libraries/${LIBRARY_ID}/tags`);
+        tags = await response.json();
+        renderTags();
+    } catch (err) {
+        showToast('Failed to load tags', 'error');
+        console.error(err);
+    }
+}
+
+function renderTags() {
+    const grid = document.getElementById('tags-grid');
+    const emptyState = document.getElementById('empty-state');
+    
+    if (tags.length === 0) {
+        grid.innerHTML = '';
+        emptyState.classList.remove('hidden');
+        return;
+    }
+    
+    emptyState.classList.add('hidden');
+    
+    grid.innerHTML = tags.map(tag => `
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+            <div class="flex items-start justify-between mb-4">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-900">${escapeHtml(tag.name)}</h3>
+                    <p class="text-sm text-gray-500 mt-1">${tag.file_count || 0} file${tag.file_count !== 1 ? 's' : ''}</p>
+                </div>
+            </div>
+            
+            <div class="flex space-x-2">
+                <a 
+                    href="/libraries/${LIBRARY_ID}/browse?tag=${encodeURIComponent(tag.name)}"
+                    class="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-center font-medium py-2 px-4 rounded-md text-sm"
+                >
+                    View Files
+                </a>
+            </div>
+        </div>
+    `).join('');
+}
+
+function showCreateTagModal() {
+    const modal = document.getElementById('create-tag-modal');
+    modal.classList.remove('hidden');
+    modal.style.display = 'flex';
+    modal.style.pointerEvents = 'auto';
+}
+
+function hideCreateTagModal() {
+    const modal = document.getElementById('create-tag-modal');
+    modal.classList.add('hidden');
+    modal.style.display = 'none';
+    modal.style.pointerEvents = 'none';
+    document.getElementById('create-tag-form').reset();
+}
+
+async function createTag() {
+    const name = document.getElementById('tag-name').value.trim();
+    
+    if (!name) {
+        showToast('Tag name is required', 'error');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/libraries/${LIBRARY_ID}/tags`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': getCSRFToken(),
+            },
+            body: JSON.stringify({ name }),
+        });
+        
+        if (response.ok) {
+            showToast('Tag created successfully');
+            hideCreateTagModal();
+            loadTags();
+        } else {
+            const error = await response.json();
+            showToast(error.error?.message || 'Failed to create tag', 'error');
+        }
+    } catch (err) {
+        showToast('Network error', 'error');
+        console.error(err);
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+loadTags();
+</script>
+{% endblock %}
+

@@ -1,0 +1,11 @@
+version: "3.8"
+
+# Override to use slim image (no ffmpeg/exiftool)
+# Usage: docker-compose -f docker-compose.yml -f compose.slim.yml up
+
+services:
+  app:
+    build:
+      context: .
+      target: slim
+

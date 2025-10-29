@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block title %}Trash - {{ library.name }}{% endblock %}
+
+{% block nav_extra %}
+<div class="ml-8 flex items-center space-x-4">
+    <span class="text-sm text-gray-600">{{ library.name }} / Trash</span>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="mb-6 flex items-center justify-between">
+        <h1 class="text-2xl font-bold text-gray-900">Trash</h1>
+        <a href="/libraries/{{ library.id }}/browse" class="text-blue-600 hover:text-blue-800">← Back to Library</a>
+    </div>
+    
+    <div id="trash-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+        <!-- Deleted files will be loaded here -->
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const LIBRARY_ID = '{{ library.id }}';
+const LIBRARY_SLUG = '{{ library.slug }}';
+let files = [];
+
+async function loadTrash() {
+    try {
+        const response = await fetch(`/api/libraries/${LIBRARY_ID}/files?include_deleted=true`);
+        const data = await response.json();
+        files = data.files.filter(f => f.deleted_at !== null);
+        renderFiles();
+    } catch (err) {
+        showToast('Failed to load trash', 'error');
+    }
+}
+
+function renderFiles() {
+    const grid = document.getElementById('trash-grid');
+    
+    if (files.length === 0) {
+        grid.innerHTML = '<p class="text-gray-500 col-span-full">Trash is empty</p>';
+        return;
+    }
+    
+    grid.innerHTML = files.map(file => {
+        const thumbUrl = `/media/${LIBRARY_SLUG}/thumbs/img/${file.sha256}.jpg`;
+        return `
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-2">
+                <div class="aspect-square bg-gray-100 rounded overflow-hidden mb-2">
+                    <img 
+                        src="${thumbUrl}" 
+                        alt="${file.original_name}"
+                        class="w-full h-full object-cover"
+                        onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' viewBox=\\'0 0 200 200\\'%3E%3Crect fill=\\'%23e5e7eb\\' width=\\'200\\' height=\\'200\\'/%3E%3C/svg%3E'"
+                    >
+                </div>
+                <p class="text-xs text-gray-600 truncate mb-2">${file.original_name}</p>
+                <button 
+                    onclick="restoreFile(${file.id})"
+                    class="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium py-1 px-2 rounded"
+                >
+                    Restore
+                </button>
+            </div>
+        `;
+    }).join('');
+}
+
+async function restoreFile(fileId) {
+    try {
+        const response = await fetch(`/api/libraries/${LIBRARY_ID}/files/${fileId}/restore`, {
+            method: 'POST',
+            headers: {'X-CSRF-Token': getCSRFToken()},
+        });
+        
+        if (response.ok) {
+            showToast('File restored');
+            loadTrash();
+        } else {
+            showToast('Failed to restore file', 'error');
+        }
+    } catch (err) {
+        showToast('Network error', 'error');
+    }
+}
+
+loadTrash();
+</script>
+{% endblock %}
+

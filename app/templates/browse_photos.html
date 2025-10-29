@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+
+{% block title %}{{ library.name }} - Library Manager{% endblock %}
+
+{% block nav_extra %}
+<div class="ml-8 flex items-center space-x-4">
+    <span class="text-sm text-gray-600">{{ library.name }}</span>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="mb-6 flex items-center justify-between">
+        <div class="flex items-center space-x-4">
+            <input 
+                type="file" 
+                id="file-input" 
+                multiple 
+                accept="image/*,video/*"
+                class="hidden"
+                onchange="handleFileSelect(event)"
+            >
+            <button onclick="document.getElementById('file-input').click()" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md">
+                Upload Files
+            </button>
+            
+            <select id="sort-select" onchange="loadFiles()" class="px-3 py-2 border border-gray-300 rounded-md">
+                <option value="captured_at_desc">Newest First</option>
+                <option value="captured_at_asc">Oldest First</option>
+                <option value="added_at_desc">Recently Added</option>
+            </select>
+        </div>
+        
+        <div class="flex items-center space-x-2">
+            <div id="tag-filters" class="flex flex-wrap gap-2"></div>
+            <a href="/libraries/{{ library.id }}/tags" class="text-sm text-gray-600 hover:text-gray-900 ml-4">
+                Manage Tags
+            </a>
+        </div>
+    </div>
+    
+    <div id="photo-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+        <!-- Photos will be loaded here -->
+    </div>
+    
+    <div id="load-more" class="mt-6 text-center hidden">
+        <button onclick="loadMore()" class="bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium py-2 px-6 rounded-md">
+            Load More
+        </button>
+    </div>
+</div>
+
+<!-- Upload Progress -->
+<div id="upload-progress" class="hidden upload-progress">
+    <p class="font-medium text-sm">Uploading...</p>
+    <div class="progress-bar">
+        <div id="progress-fill" class="progress-bar-fill" style="width: 0%"></div>
+    </div>
+    <p id="upload-status" class="text-xs text-gray-500 mt-1">0 / 0</p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const LIBRARY_ID = '{{ library.id }}';
+const LIBRARY_SLUG = '{{ library.slug }}';
+let files = [];
+let tags = [];
+let selectedTag = null;
+let currentPage = 0;
+let hasMore = true;
+
+async function loadTags() {
+    try {
+        const response = await fetch(`/api/libraries/${LIBRARY_ID}/tags`);
+        tags = await response.json();
+        renderTagFilters();
+    } catch (err) {
+        console.error('Failed to load tags:', err);
+    }
+}
+
+function renderTagFilters() {
+    const container = document.getElementById('tag-filters');
+    
+    // Clear filter
+    container.innerHTML = '<button onclick="filterByTag(null)" class="px-3 py-1 text-sm rounded-md border ' + 
+        (selectedTag === null ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50') + 
+        '">All</button>';
+    
+    // Tag chips
+    tags.forEach(tag => {
+        if (tag.file_count > 0) {
+            const chip = document.createElement('button');
+            chip.className = 'px-3 py-1 text-sm rounded-md border ' +
+                (selectedTag === tag.name ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50');
+            chip.textContent = `${tag.name} (${tag.file_count})`;
+            chip.onclick = () => filterByTag(tag.name);
+            container.appendChild(chip);
+        }
+    });
+}
+
+function filterByTag(tagName) {
+    selectedTag = tagName;
+    renderTagFilters();
+    loadFiles(true);
+}
+
+async function loadFiles(reset = true) {
+    if (reset) {
+        currentPage = 0;
+        files = [];
+    }
+    
+    const sort = document.getElementById('sort-select').value;
+    const tagParam = selectedTag ? `&tag=${encodeURIComponent(selectedTag)}` : '';
+    
+    try {
+        const response = await fetch(`/api/libraries/${LIBRARY_ID}/files?page=${currentPage}&sort=${sort}${tagParam}`);
+        const data = await response.json();
+        
+        files.push(...data.files);
+        hasMore = (currentPage + 1) * data.page_size < data.total;
+        
+        renderFiles();
+        
+        document.getElementById('load-more').classList.toggle('hidden', !hasMore);
+    } catch (err) {
+        showToast('Failed to load files', 'error');
+    }
+}
+
+function renderFiles() {
+    const grid = document.getElementById('photo-grid');
+    
+    if (files.length === 0) {
+        grid.innerHTML = '<p class="text-gray-500 col-span-full">No files yet. Upload some to get started!</p>';
+        return;
+    }
+    
+    grid.innerHTML = files.map(file => {
+        const thumbUrl = `/media/${LIBRARY_SLUG}/thumbs/img/${file.sha256}.jpg`;
+        return `
+            <div class="grid-item aspect-square bg-gray-100 rounded-lg overflow-hidden">
+                <img 
+                    src="${thumbUrl}" 
+                    alt="${file.original_name}"
+                    loading="lazy"
+                    class="w-full h-full object-cover hover:scale-105 transition-transform"
+                    onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' viewBox=\\'0 0 200 200\\'%3E%3Crect fill=\\'%23e5e7eb\\' width=\\'200\\' height=\\'200\\'/%3E%3Ctext x=\\'50%25\\' y=\\'50%25\\' text-anchor=\\'middle\\' dy=\\'.3em\\' fill=\\'%239ca3af\\' font-size=\\'14\\'%3ENo preview%3C/text%3E%3C/svg%3E'"
+                >
+                <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/50 to-transparent p-2 opacity-0 hover:opacity-100 transition-opacity">
+                    <p class="text-white text-xs truncate">${file.original_name}</p>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function loadMore() {
+    currentPage++;
+    loadFiles(false);
+}
+
+async function handleFileSelect(event) {
+    const selectedFiles = Array.from(event.target.files);
+    if (selectedFiles.length === 0) return;
+    
+    const progressDiv = document.getElementById('upload-progress');
+    const progressFill = document.getElementById('progress-fill');
+    const statusText = document.getElementById('upload-status');
+    
+    progressDiv.classList.remove('hidden');
+    
+    let uploaded = 0;
+    for (const file of selectedFiles) {
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            const response = await fetch(`/api/libraries/${LIBRARY_ID}/files`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-Token': getCSRFToken(),
+                },
+                body: formData,
+            });
+            
+            if (response.ok) {
+                uploaded++;
+                const progress = (uploaded / selectedFiles.length) * 100;
+                progressFill.style.width = progress + '%';
+                statusText.textContent = `${uploaded} / ${selectedFiles.length}`;
+            }
+        } catch (err) {
+            console.error('Upload failed:', err);
+        }
+    }
+    
+    setTimeout(() => {
+        progressDiv.classList.add('hidden');
+        showToast(`Uploaded ${uploaded} files`);
+        loadFiles();
+    }, 1000);
+    
+    event.target.value = '';
+}
+
+loadTags();
+loadFiles();
+</script>
+{% endblock %}
+

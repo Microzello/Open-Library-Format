@@ -1,0 +1,29 @@
+version: "3.8"
+
+services:
+  app:
+    build:
+      context: .
+      target: full  # Use 'slim' for minimal image, 'full' for all features
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    volumes:
+      # Persistent library storage
+      - ./libraries:/data/libraries
+      # Runtime state (registry.db, logs, bootstrap sentinel)
+      - ./var:/app/var
+    environment:
+      # Override in .env or here
+      - HOST=0.0.0.0
+      - PORT=8080
+      - WORKERS=1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/api/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+

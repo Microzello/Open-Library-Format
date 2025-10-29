@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+
+{% block title %}{{ library.name }} - Library Manager{% endblock %}
+
+{% block nav_extra %}
+<div class="ml-8 flex items-center space-x-4">
+    <span class="text-sm text-gray-600">{{ library.name }}</span>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="mb-6 flex items-center justify-between">
+        <div class="flex items-center space-x-4">
+            <input 
+                type="file" 
+                id="file-input" 
+                multiple
+                class="hidden"
+                onchange="handleFileSelect(event)"
+            >
+            <button onclick="document.getElementById('file-input').click()" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md">
+                Upload Files
+            </button>
+        </div>
+        
+        <div class="flex items-center space-x-2">
+            <input 
+                type="text" 
+                id="search-input" 
+                placeholder="Search..." 
+                class="px-3 py-2 border border-gray-300 rounded-md"
+                onkeyup="handleSearch(event)"
+            >
+        </div>
+    </div>
+    
+    <div class="bg-white shadow-sm rounded-lg overflow-hidden">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Size</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Added</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="docs-table" class="bg-white divide-y divide-gray-200">
+                <!-- Documents will be loaded here -->
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const LIBRARY_ID = '{{ library.id }}';
+let files = [];
+let searchTimeout;
+
+async function loadFiles(query = null) {
+    try {
+        const url = query 
+            ? `/api/libraries/${LIBRARY_ID}/files?q=${encodeURIComponent(query)}`
+            : `/api/libraries/${LIBRARY_ID}/files`;
+        
+        const response = await fetch(url);
+        const data = await response.json();
+        files = data.files;
+        renderFiles();
+    } catch (err) {
+        showToast('Failed to load files', 'error');
+    }
+}
+
+function renderFiles() {
+    const tbody = document.getElementById('docs-table');
+    
+    if (files.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-4 text-center text-gray-500">No documents found</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = files.map(file => `
+        <tr class="hover:bg-gray-50">
+            <td class="px-6 py-4">
+                <div class="text-sm font-medium text-gray-900">${file.original_name}</div>
+            </td>
+            <td class="px-6 py-4 text-sm text-gray-500">${file.mime || 'Unknown'}</td>
+            <td class="px-6 py-4 text-sm text-gray-500">${formatBytes(file.size)}</td>
+            <td class="px-6 py-4 text-sm text-gray-500">${formatDate(file.added_at)}</td>
+            <td class="px-6 py-4 text-sm">
+                <a 
+                    href="/api/libraries/${LIBRARY_ID}/files/${file.id}/download" 
+                    class="text-blue-600 hover:text-blue-800"
+                >
+                    Download
+                </a>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function handleSearch(event) {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+        const query = event.target.value.trim();
+        loadFiles(query || null);
+    }, 300);
+}
+
+async function handleFileSelect(event) {
+    const selectedFiles = Array.from(event.target.files);
+    if (selectedFiles.length === 0) return;
+    
+    for (const file of selectedFiles) {
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        await fetch(`/api/libraries/${LIBRARY_ID}/files`, {
+            method: 'POST',
+            headers: {'X-CSRF-Token': getCSRFToken()},
+            body: formData,
+        });
+    }
+    
+    showToast(`Uploaded ${selectedFiles.length} files`);
+    loadFiles();
+    event.target.value = '';
+}
+
+loadFiles();
+</script>
+{% endblock %}
+

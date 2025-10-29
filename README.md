@@ -1,252 +1,233 @@
-# Open Library Format (OLF)
+# Portable Library Manager
 
-*A native desktop suite for managing self‑contained libraries for Documents, Photos, Movies/TV, Music, Projects, etc. Entirely offline with optional, decentralized sync. Libraries are portable bundles; albums/collections can export as independent libraries; multiple libraries can be opened together in merged views.*
+A self-hosted, Dockerized file library manager with content-addressed storage, SQLite metadata, and browser-based UI.
 
-*C++/Qt‑Oriented Architecture (Local‑first & Native)*
+## What is this?
 
----
-###### Current Ideas and brainstorming:
----
+A portable, self-contained system for managing collections of files (photos/videos, documents, music). Each library is a standalone folder on disk that can be copied between machines without breaking. No external databases, no cloud dependencies—just files, SQLite, and a clean web interface.
 
-## Architecture Overview
+## Features
 
-**1) LibraryManager (Main Application)**
-* Native desktop application that lists libraries, creates new ones, opens multiple at once, and connects to remote libraries when networking is enabled.
-* Selecting a **Library Type** at creation time (Photo, Movie/TV, Music, Documents, etc.) chooses an **Engine** that defines schema, behaviors, and UI affordances for that type.
+- **Content-addressed storage**: Files are deduplicated by SHA-256 hash
+- **Portable libraries**: Each library is self-contained with its own SQLite database
+- **No permanent deletion**: Files move to trash, not destroyed (purge disabled by default)
+- **Tags & collections**: Organize files with tags (including favorites)
+- **Full-text search**: FTS5-powered search for documents
+- **EXIF timezone handling**: Parse and normalize photo timestamps with per-library timezone
+- **Thumbnails & previews**: Auto-generate thumbnails for images and video posters
+- **Multi-format support**:
+  - **photo_video**: JPEG, PNG, WebP, HEIC, MP4, MOV, MKV, WebM
+  - **documents**: Any file type (with FTS search)
+  - **music**: MP3, FLAC, WAV, M4A, OGG
+- **Background jobs**: Daily reconciliation, WAL checkpointing
+- **Docker-ready**: Two variants (slim/full), single-command deploy
 
-**2) Library Engines (modular)**
+## Quick Start
 
-* Each engine implements: on‑disk layout, metadata schema (SQLite), scanner/indexer, and type‑specific UI panels.
-* Engines are discoverable plug‑ins. Third parties can add engines without changing the core.
+### 1. Clone and configure
 
-**3) Self‑contained Libraries**
+```bash
+git clone <repo-url>
+cd Open-Library-Format
 
-* Each library is a portable bundle (folder or single‑file archive) that holds originals, thumbnails, metadata DB, and edit data.
-* **Albums/Collections** are many‑to‑many (one item can appear in multiple). Exporting an album/collection creates a **new library** that may include multiple albums and its own people/tags DB, no dependency on the source library.
+# Copy environment template
+cp .env.example .env
 
-**4) Multi‑Library Workspace**
-
-* The Manager can open N libraries concurrently. Views (e.g., Photos timeline) show **merged results** across libraries while each library’s DB remains isolated. No global DB is required; results are composed at runtime.
-
----
-
-## Tech Stack (C++/Qt)
-
-**Language & UI**
-
-* **C++20** (or C++17 for older toolchains).
-* **Qt 6 LTS (Widgets or QML)** for cross‑platform native UI, file dialogs, file watching, image I/O helpers, and internationalization.
-
-**Core libs**
-
-* **SQLite** (WAL mode) for each library’s metadata DB.
-* **Exiv2** for EXIF/XMP; **libjpeg‑turbo**, **libpng**, **libtiff**, **libraw** for image formats.
-* **fmt** and **spdlog** for logging; **OpenMP** or **QtConcurrent** for parallel tasks.
-* Platform file watchers (inotify/FSEvents/ReadDirectoryChangesW) via Qt or small native shims.
-
-**Build & packaging**
-
-* **CMake** project; dependency management via **vcpkg** or **Conan**.
-* Installers: Windows (MSIX/Wix), macOS (signed .dmg), Linux (AppImage/Flatpak).
-
-**Licensing**
-
-* Project code under a permissive license (**Apache‑2.0** or **MPL‑2.0**).
-* Link to **Qt under LGPL** via dynamic linking; provide license text and offer object files for relinking if needed.
-* All third‑party libs chosen for OSS‑friendly licenses; avoid copyleft taint in the core unless explicitly desired.
-
-\[Comment 1] *Confirm the exact license combo (e.g., Apache‑2.0 + Qt LGPL + dynamic linking) and note any static‑link exceptions. This keeps the project open‑source and free to use while avoiding Qt commercial terms.*
-
----
-
-## On‑Disk Library (per‑engine)
-
-**Directory layout (folder; can be archived to a single file for transport):**
-
-```
-<LibraryName>.olf/
-  manifest.json            # identity, type, engine version, features
-  meta.db                  # SQLite for this library only (WAL enabled)
-  objects/                 # originals & derived, content‑addressed
-  thumbs/                  # caches/derivatives
-  edits/                   # parametric edit stacks (JSON or binary)
-  indexes/                 # FTS, thumbnail manifests
-  export/                  # (optional) staging for album/collection export
-  logs/                    # operation journal for recovery & sync
+# Edit .env - MUST change APP_SECRET for production!
+nano .env
 ```
 
-**Library Manifest:**
+### 2. Run with Docker Compose
 
-```json
-{
-  "olf_version": 1,
-  "library_uuid": "8b3f…",
-  "engine": {
-    "type": "photos",
-    "engine_id": "olf-photos",
-    "engine_version": 1
-  },
-  "created_utc": "2025-09-09T00:00:00Z",
-  "features": {
-    "edits_parametric": true,
-    "smart_collections": true,
-    "encryption": false
-  },
-  "provenance": {
-    "subset_of": null,
-    "export_filter": null
-  },
-  "paths": {
-    "db": "meta.db",
-    "objects": "objects/",
-    "thumbs": "thumbs/",
-    "edits": "edits/"
-  }
-}
+```bash
+docker-compose up -d
 ```
 
----
+### 3. Bootstrap setup
 
-## Photo Engine Schema (SQLite) - albums as views
+1. Check logs for bootstrap token:
+   ```bash
+   docker-compose logs app | grep "Token:"
+   ```
 
-**Design principles:**
-- Assets stored once; albums/tags/people are metadata views
-- Exports copy assets + dependent metadata to new library
-- All identifiers are UUIDs (RFC 4122) stored as TEXT
-- Column naming: `entity_uuid` pattern, no integer PKs
+2. Visit `http://localhost:8080/setup?token=<YOUR_TOKEN>`
 
-```sql
-CREATE TABLE assets (
-  asset_uuid TEXT PRIMARY KEY,
-  object_hash TEXT NOT NULL,
-  byte_size INTEGER NOT NULL,
-  ext TEXT,
-  width INTEGER, height INTEGER,
-  captured_at_utc TEXT,               -- ISO8601
-  imported_at_utc TEXT NOT NULL,
-  source_uri TEXT,
-  deleted INTEGER DEFAULT 0
-);
+3. Create your admin account
 
-CREATE TABLE albums (
-  album_uuid TEXT PRIMARY KEY,
-  title TEXT NOT NULL,
-  kind TEXT DEFAULT 'static',         -- 'static'|'smart'
-  filter_json TEXT,
-  created_utc TEXT NOT NULL
-);
+4. Start creating libraries and uploading files!
 
-CREATE TABLE album_items (
-  album_uuid TEXT NOT NULL,
-  asset_uuid TEXT NOT NULL,
-  position INTEGER,
-  added_utc TEXT NOT NULL,
-  PRIMARY KEY (album_uuid, asset_uuid)
-);
+## Configuration (.env)
 
-CREATE TABLE tags (
-  tag_uuid TEXT PRIMARY KEY,
-  name TEXT UNIQUE NOT NULL,
-  parent_tag_uuid TEXT
-);
+### Required
 
-CREATE TABLE asset_tags (
-  asset_uuid TEXT NOT NULL,
-  tag_uuid TEXT NOT NULL,
-  PRIMARY KEY (asset_uuid, tag_uuid)
-);
-
-CREATE TABLE people (
-  person_uuid TEXT PRIMARY KEY,
-  display_name TEXT NOT NULL
-);
-
-CREATE TABLE faces (
-  face_uuid TEXT PRIMARY KEY,
-  asset_uuid TEXT NOT NULL,
-  person_uuid TEXT,
-  bbox TEXT NOT NULL,
-  confidence REAL
-);
-
-CREATE TABLE edits (
-  edit_uuid TEXT PRIMARY KEY,
-  asset_uuid TEXT NOT NULL,
-  stack_json TEXT NOT NULL,
-  created_utc TEXT NOT NULL
-);
-
-CREATE VIRTUAL TABLE search USING fts5(asset_uuid, title, description, tags);
+```bash
+APP_SECRET=change_me_to_a_random_string  # CRITICAL: Change this!
+LIBRARIES_ROOT=/data/libraries           # Where library folders live
 ```
 
-**Performance consideration:** Store timestamps as integer epoch microseconds for fast range queries. ISO8601 strings can be computed views for readability.
+### Optional
 
----
+```bash
+# Server
+HOST=0.0.0.0
+PORT=8080
+WORKERS=1  # Keep at 1 for scheduler
 
-## Manager: Multi‑Library Composition
+# Bootstrap
+BOOTSTRAP_MODE=wizard  # or 'env' for headless
+BOOTSTRAP_TOKEN=       # Auto-generated if empty
+ADMIN_USERNAME=        # Only for BOOTSTRAP_MODE=env
+ADMIN_PASSWORD_BCRYPT= # Bcrypt hash only
 
-* Keep an in‑memory **workspace index** that represents the union of the currently opened libraries (read‑only projections over each SQLite DB).
-* UI shows merged views (e.g., Photo timeline across two libraries) by executing the same query against each DB and stitching results.
-* Batch operations route to the selected library’s engine; cross‑library operations are repeated single‑library operations.
+# Timezone
+DEFAULT_TZ=UTC  # Default for libraries (e.g., America/Los_Angeles)
 
-**Performance optimization needed:** Per-session ephemeral index to avoid O(N) scans on every UI scroll. Invalidate on library modifications.
+# Features (auto-detected)
+ENABLE_FFMPEG=auto   # auto|true|false
+ENABLE_EXIFTOOL=auto
 
----
+# Safety
+ALLOW_PURGE=false  # NEVER set true unless you really mean it
 
-## Edits & Versioning (Photos)
+# Security
+CONTENT_SECURITY_POLICY="default-src 'self'; img-src 'self' data: blob:; ..."
+```
 
-**Edit Stack Architecture:**
-- Originals immutable; edits stored as parametric operations
-- Virtual copies = additional edit stacks referencing same original
-- Rendered derivatives cached by `(original_hash + stack_hash + output_size)`
+## Docker Images
 
-**Critical requirement:** Versioned edit-stack schema with canonical serialization ensures deterministic hashing across platforms and safe cache reuse.
+Two build targets:
 
----
+- **`:slim`** (default): Python + Pillow + mutagen (~200MB)
+- **`:full`**: Adds ffmpeg, exiftool, poppler (~400MB)
 
-## Local‑only MVP (priorities)
+Switch to slim:
+```bash
+docker-compose -f docker-compose.yml -f compose.slim.yml up -d
+```
 
-1. **Manager**: create/open libraries; open multiple concurrently; merged photo timeline.
-2. **Photo Engine v1**: import files; EXIF read; thumbnails; albums; tags; simple search; non‑destructive edits (crop/rotate/exposure).
-3. **Album → Library export**: share a subset as an independent portable library.
-4. **Documents Engine v1**: flat storage + tags as collections; full‑text index later.
-5. Packaging: single‑folder library + “pack to archive” for sharing/backup.
+## Library Types
 
-Stretch: Smart Albums; People (offline face detect/cluster); per‑library encryption.
+| Type | Allowed Files | Default Sort | Features |
+|------|--------------|--------------|----------|
+| `photo_video` | Images, videos | `captured_at` DESC | EXIF parsing, thumbnails |
+| `documents` | All files | `added_at` DESC | Full-text search (FTS5) |
+| `music` | Audio files | `added_at` DESC | Tag parsing (mutagen) |
 
----
+## Storage Layout
 
-## Networking (later; design constraints only)
+```
+LIBRARIES_ROOT/
+  my-photos/
+    library.json      # Manifest (id, name, type, schema_version, tz)
+    index.db          # SQLite database (WAL mode)
+    files/            # Content-addressed blobs: aa/bb/<sha256>
+    thumbs/           # Thumbnails: img|vid/aa/bb/<sha256>.jpg
+    trash/            # Soft-deleted files
+    locks/            # Advisory locks
+```
 
-* **No central service requirement.** Must work on LAN or across the internet with user‑provided infra only.
-* **Pluggable transports:**
+## CLI Commands
 
-  * WireGuard‑style direct mesh (user supplies endpoint keys; STUN/TURN optional, not mandatory).
-  * LAN discovery via mDNS/UDP broadcast.
-  * **BitTorrent distribution mode** for read‑only or append‑only libraries: magnet links for snapshot releases; optional signed update manifests for deltas; streaming of large media when partially available.
-* Auth via public‑key identities; signed operation logs; no SaaS login needed.
+Create a user manually (bypass wizard):
+```bash
+docker exec app python -m app.cli create-user --admin <username> <password>
+```
 
-**Architecture decision:** Separate read-only distribution (BitTorrent snapshots) from multi-writer replication (conflict resolution required). Different use cases need different consistency guarantees.
+## API Endpoints
 
----
+### Libraries
+- `GET /api/libraries` - List all
+- `POST /api/libraries` - Create `{name, type, slug?, tz?}`
+- `GET /api/libraries/{id}` - Get details
+- `DELETE /api/libraries/{id}` - Remove from registry (folder stays)
 
-## Design Benefits
+### Files
+- `GET /api/libraries/{id}/files?tag=&q=&page=&sort=` - List/search
+- `POST /api/libraries/{id}/files` - Upload (multipart)
+- `GET /api/libraries/{id}/files/{file_id}` - Details
+- `GET /api/libraries/{id}/files/{file_id}/download` - Download
+- `DELETE /api/libraries/{id}/files/{file_id}` - Move to trash
+- `POST /api/libraries/{id}/files/{file_id}/restore` - Restore
+- `PATCH /api/libraries/{id}/files/{file_id}` - Update metadata
 
-- **Local-first:** No web dependencies, works offline
-- **Portable:** Libraries are self-contained units for backup/sharing
-- **Modular:** Engine system allows specialized evolution per media type
-- **Decentralized:** Future sync remains optional and user-controlled
+### Tags
+- `GET /api/libraries/{id}/tags` - List with counts
+- `POST /api/libraries/{id}/tags` - Create `{name}`
+- `POST /api/libraries/{id}/files/{file_id}/tags` - Add `{tag_id}`
+- `DELETE /api/libraries/{id}/files/{file_id}/tags/{tag_id}` - Remove
 
----
+### Media
+- `GET /media/{slug}/file/{sha256}` - Serve original (with range support)
+- `GET /media/{slug}/thumbs/{kind}/{sha256}.jpg` - Serve thumbnail
 
-## Next Decisions Required
+## Constraints & Known Limitations
 
-**Technical choices:**
-- C++ standard: C++17 (broader compatibility) vs C++20 (better features)
-- Qt framework: Widgets (stable, familiar) vs QML (modern, declarative)
-- Export strategy: copy-on-write (space efficient) vs copy-by-value (simpler)
+- **Single-user MVP**: One admin account per instance
+- **No external sync**: WebDAV/S3 not implemented
+- **No collaboration**: No shared editing or multi-user access
+- **SQLite concurrency**: Suitable for personal use; write-heavy loads may need tuning
+- **Purge disabled by default**: `ALLOW_PURGE=false` enforces no-permanent-delete rule
 
-**Architecture decisions:**
-- Plugin ABI: stable C interface vs C++ (easier but fragile)
-- Image processing: CPU-only first vs GPU acceleration from start
-- Packaging targets: prioritize which platforms for initial release
+## Backup & Portability
+
+### Backup a library
+```bash
+cp -r libraries/my-photos /backup/my-photos-$(date +%Y%m%d)
+```
+
+### Move to another machine
+```bash
+# On machine A
+tar -czf my-photos.tar.gz libraries/my-photos
+
+# On machine B
+tar -xzf my-photos.tar.gz -C /data/libraries/
+# Restart app to auto-discover
+```
+
+## Development
+
+### Run locally (without Docker)
+```bash
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+export APP_SECRET=dev
+export LIBRARIES_ROOT=./libraries
+python -m app.main
+```
+
+Visit `http://127.0.0.1:8080`
+
+## License
+
+See [LICENSE](LICENSE) file.
+
+## Security Notes
+
+- Change `APP_SECRET` before production
+- Run behind a reverse proxy (nginx/Caddy) for TLS
+- Bind to `127.0.0.1` if local-only; use firewall for remote access
+- Bootstrap token is one-time use and invalidated after setup
+- CSRF protection on all write endpoints
+- Session cookies are HttpOnly and SameSite=Lax
+
+## Troubleshooting
+
+**Library not discovered after copying?**
+- Check `library.json` exists and is valid JSON
+- Restart app to trigger library scan
+
+**Thumbnails not generating?**
+- Check logs: `docker-compose logs app`
+- Verify ffmpeg/exiftool if using `:full` image
+
+**WAL file growing too large?**
+- Background checkpoint runs nightly at 3 AM UTC
+- Manual: `docker exec app sqlite3 /data/libraries/<slug>/index.db "PRAGMA wal_checkpoint(TRUNCATE);"`
+
+**Upload fails with "Invalid file type"?**
+- MIME type must match library type (sniffed, not extension-based)
+- Check allowed types in docs above
+

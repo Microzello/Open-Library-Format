@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+
+{% block title %}Libraries - Library Manager{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="flex justify-between items-center mb-8">
+        <h1 class="text-3xl font-bold text-gray-900">Libraries</h1>
+        <button onclick="showCreateModal()" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md">
+            Create Library
+        </button>
+    </div>
+    
+    <div id="libraries-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- Libraries will be loaded here -->
+    </div>
+</div>
+
+<!-- Create Library Modal -->
+<div id="create-modal" class="hidden fixed inset-0" style="display: none; z-index: 9999; background: rgba(0, 0, 0, 0.5);" onclick="if(event.target === this) hideCreateModal();">
+    <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 1rem; pointer-events: none;">
+        <div class="modal-content bg-white rounded-lg shadow-xl max-w-md w-full p-6" style="pointer-events: auto; position: relative; z-index: 10001;" onclick="event.stopPropagation();">
+            <h2 class="text-xl font-bold mb-4">Create New Library</h2>
+            
+            <form id="create-library-form" class="space-y-4" onmousedown="event.stopPropagation();" onclick="event.stopPropagation();">
+                <div>
+                    <label for="lib-name" class="block text-sm font-medium text-gray-700">Name</label>
+                    <input 
+                        type="text" 
+                        id="lib-name" 
+                        required
+                        class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                    >
+                </div>
+                
+                <div>
+                    <label for="lib-type" class="block text-sm font-medium text-gray-700">Type</label>
+                    <select 
+                        id="lib-type" 
+                        required
+                        class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                    >
+                        <option value="photo_video">Photos & Videos</option>
+                        <option value="documents">Documents</option>
+                        <option value="music">Music</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label for="lib-slug" class="block text-sm font-medium text-gray-700">Slug (optional)</label>
+                    <input 
+                        type="text" 
+                        id="lib-slug"
+                        placeholder="Auto-generated from name"
+                        class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                    >
+                </div>
+                
+                <div>
+                    <label for="lib-tz" class="block text-sm font-medium text-gray-700">Timezone</label>
+                    <input 
+                        type="text" 
+                        id="lib-tz"
+                        value="UTC"
+                        class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md"
+                    >
+                    <p class="text-xs text-gray-500 mt-1">e.g., America/Los_Angeles, UTC, Europe/London</p>
+                </div>
+                
+                <div class="flex space-x-3">
+                    <button 
+                        type="submit"
+                        class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md"
+                    >
+                        Create
+                    </button>
+                    <button 
+                        type="button"
+                        onclick="hideCreateModal()"
+                        class="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 font-medium py-2 px-4 rounded-md"
+                    >
+                        Cancel
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let libraries = [];
+
+async function loadLibraries() {
+    try {
+        const response = await fetch('/api/libraries');
+        libraries = await response.json();
+        renderLibraries();
+    } catch (err) {
+        showToast('Failed to load libraries', 'error');
+    }
+}
+
+function renderLibraries() {
+    const grid = document.getElementById('libraries-grid');
+    
+    if (libraries.length === 0) {
+        grid.innerHTML = '<p class="text-gray-500 col-span-full">No libraries yet. Create one to get started!</p>';
+        return;
+    }
+    
+    grid.innerHTML = libraries.map(lib => `
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+            <div class="flex items-start justify-between mb-4">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-900">${lib.name}</h3>
+                    <p class="text-sm text-gray-500">${lib.type.replace('_', ' ')}</p>
+                </div>
+                <span class="px-2 py-1 text-xs font-medium rounded ${
+                    lib.stats?.status === 'missing' ? 'bg-red-100 text-red-800' :
+                    lib.stats?.status === 'error' ? 'bg-yellow-100 text-yellow-800' :
+                    'bg-green-100 text-green-800'
+                }">
+                    ${lib.stats?.status || 'active'}
+                </span>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-4 mb-4 text-sm">
+                <div>
+                    <p class="text-gray-500">Files</p>
+                    <p class="font-medium">${lib.stats?.total_files || 0}</p>
+                </div>
+                <div>
+                    <p class="text-gray-500">Tags</p>
+                    <p class="font-medium">${lib.stats?.tag_count || 0}</p>
+                </div>
+                <div>
+                    <p class="text-gray-500">Trash</p>
+                    <p class="font-medium">${lib.stats?.trash_count || 0}</p>
+                </div>
+                <div>
+                    <p class="text-gray-500">Size</p>
+                    <p class="font-medium">${formatBytes(lib.stats?.total_size || 0)}</p>
+                </div>
+            </div>
+            
+            <div class="flex space-x-2">
+                <a 
+                    href="/libraries/${lib.id}/browse"
+                    class="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-center font-medium py-2 px-4 rounded-md text-sm"
+                >
+                    Browse
+                </a>
+                <a 
+                    href="/libraries/${lib.id}/tags"
+                    class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 text-center font-medium py-2 px-4 rounded-md text-sm"
+                >
+                    Tags
+                </a>
+                <a 
+                    href="/libraries/${lib.id}/trash"
+                    class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 text-center font-medium py-2 px-4 rounded-md text-sm"
+                >
+                    Trash
+                </a>
+            </div>
+        </div>
+    `).join('');
+}
+
+function showCreateModal() {
+    const modal = document.getElementById('create-modal');
+    modal.classList.remove('hidden');
+    modal.style.display = 'flex';
+    modal.style.pointerEvents = 'auto';
+}
+
+function hideCreateModal() {
+    const modal = document.getElementById('create-modal');
+    modal.classList.add('hidden');
+    modal.style.display = 'none';
+    modal.style.pointerEvents = 'none';
+    document.getElementById('create-library-form').reset();
+}
+
+document.getElementById('create-library-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const name = document.getElementById('lib-name').value;
+    const type = document.getElementById('lib-type').value;
+    const slug = document.getElementById('lib-slug').value || null;
+    const tz = document.getElementById('lib-tz').value || 'UTC';
+    
+    try {
+        const response = await fetch('/api/libraries', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': getCSRFToken(),
+            },
+            body: JSON.stringify({name, type, slug, tz}),
+        });
+        
+        if (response.ok) {
+            showToast('Library created successfully');
+            hideCreateModal();
+            loadLibraries();
+        } else {
+            const error = await response.json();
+            showToast(error.error?.message || 'Failed to create library', 'error');
+        }
+    } catch (err) {
+        showToast('Network error', 'error');
+    }
+});
+
+// Load on page load
+loadLibraries();
+</script>
+{% endblock %}
+

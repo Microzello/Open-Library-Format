@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Setup - Library Manager</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.98);
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 450px;
+            width: 100%;
+            padding: 40px;
+            animation: slideIn 0.5s ease-out;
+        }
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+        .icon {
+            width: 70px;
+            height: 70px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-center;
+            margin-bottom: 16px;
+        }
+        .icon svg {
+            width: 35px;
+            height: 35px;
+            color: white;
+        }
+        h1 {
+            font-size: 28px;
+            color: #1a202c;
+            margin-bottom: 8px;
+        }
+        .subtitle {
+            color: #718096;
+            font-size: 15px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        .input-wrapper {
+            position: relative;
+        }
+        .input-icon {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #a0aec0;
+            width: 20px;
+            height: 20px;
+        }
+        input {
+            width: 100%;
+            padding: 12px 12px 12px 40px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 15px;
+            transition: all 0.2s;
+        }
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        .hint {
+            font-size: 12px;
+            color: #718096;
+            margin-top: 4px;
+            margin-left: 4px;
+        }
+        button {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-top: 8px;
+        }
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+        button:active:not(:disabled) {
+            transform: translateY(0);
+        }
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .error {
+            background: #fff5f5;
+            border-left: 4px solid #f56565;
+            padding: 12px;
+            border-radius: 4px;
+            margin-top: 16px;
+            display: none;
+            align-items: flex-start;
+        }
+        .error.show {
+            display: flex;
+        }
+        .error-icon {
+            width: 20px;
+            height: 20px;
+            color: #f56565;
+            margin-right: 8px;
+            flex-shrink: 0;
+        }
+        .error-text {
+            color: #c53030;
+            font-size: 14px;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 24px;
+            font-size: 12px;
+            color: #a0aec0;
+        }
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 0.6s linear infinite;
+            margin-left: 8px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="icon">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+                </svg>
+            </div>
+            <h1>Welcome!</h1>
+            <p class="subtitle">Create your admin account to get started</p>
+        </div>
+
+        <form id="setup-form">
+            <input type="hidden" id="token" value="{{ token if token else expected_token }}">
+            
+            <div class="form-group">
+                <label for="username">Username</label>
+                <div class="input-wrapper">
+                    <svg class="input-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                    </svg>
+                    <input type="text" id="username" required minlength="3" placeholder="admin" autocomplete="username">
+                </div>
+                <p class="hint">Minimum 3 characters</p>
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Password</label>
+                <div class="input-wrapper">
+                    <svg class="input-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                    </svg>
+                    <input type="password" id="password" required minlength="8" placeholder="••••••••" autocomplete="new-password">
+                </div>
+                <p class="hint">Minimum 8 characters</p>
+            </div>
+            
+            <div class="form-group">
+                <label for="password_confirm">Confirm Password</label>
+                <div class="input-wrapper">
+                    <svg class="input-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <input type="password" id="password_confirm" required placeholder="••••••••" autocomplete="new-password">
+                </div>
+            </div>
+            
+            <div class="error" id="error">
+                <svg class="error-icon" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>
+                </svg>
+                <span class="error-text" id="error-text"></span>
+            </div>
+            
+            <button type="submit" id="submit-btn">
+                <span id="btn-text">Create Admin Account</span>
+                <span id="spinner" class="spinner" style="display:none;"></span>
+            </button>
+        </form>
+        
+        <div class="footer">
+            Portable Library Manager v0.1.0
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('setup-form');
+        const submitBtn = document.getElementById('submit-btn');
+        const btnText = document.getElementById('btn-text');
+        const spinner = document.getElementById('spinner');
+        const errorDiv = document.getElementById('error');
+        const errorText = document.getElementById('error-text');
+        
+        function showError(msg) {
+            errorText.textContent = msg;
+            errorDiv.classList.add('show');
+            setTimeout(() => errorDiv.classList.remove('show'), 5000);
+        }
+        
+        function setLoading(loading) {
+            submitBtn.disabled = loading;
+            btnText.textContent = loading ? 'Creating...' : 'Create Admin Account';
+            spinner.style.display = loading ? 'inline-block' : 'none';
+        }
+        
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            const password_confirm = document.getElementById('password_confirm').value;
+            const token = document.getElementById('token').value;
+            
+            errorDiv.classList.remove('show');
+            
+            if (username.length < 3) {
+                showError('Username must be at least 3 characters');
+                return;
+            }
+            
+            if (password.length < 8) {
+                showError('Password must be at least 8 characters');
+                return;
+            }
+            
+            if (password !== password_confirm) {
+                showError('Passwords do not match');
+                return;
+            }
+            
+            if (!token) {
+                showError('Bootstrap token missing. Use the link from logs.');
+                return;
+            }
+            
+            setLoading(true);
+            
+            try {
+                const response = await fetch('/api/setup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password, token }),
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    btnText.textContent = 'Success! Redirecting...';
+                    setTimeout(() => window.location.href = '/libraries', 500);
+                } else {
+                    setLoading(false);
+                    showError(data.error?.message || 'Setup failed');
+                }
+            } catch (err) {
+                setLoading(false);
+                showError('Network error: ' + err.message);
+            }
+        });
+    </script>
+</body>
+</html>

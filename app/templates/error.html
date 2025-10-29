@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block title %}Error{% endblock %}
+
+{% block content %}
+<div class="min-h-screen flex items-center justify-center">
+    <div class="text-center">
+        <h1 class="text-4xl font-bold text-gray-900 mb-4">Error</h1>
+        <p class="text-gray-600">{{ error }}</p>
+        <a href="/libraries" class="mt-4 inline-block text-blue-600 hover:text-blue-800">← Back to Libraries</a>
+    </div>
+</div>
+{% endblock %}
+

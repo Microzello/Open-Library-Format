@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block title %}{{ library.name }} - Library Manager{% endblock %}
+
+{% block nav_extra %}
+<div class="ml-8 flex items-center space-x-4">
+    <span class="text-sm text-gray-600">{{ library.name }}</span>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="mb-6">
+        <input 
+            type="file" 
+            id="file-input" 
+            multiple 
+            accept="audio/*"
+            class="hidden"
+            onchange="handleFileSelect(event)"
+        >
+        <button onclick="document.getElementById('file-input').click()" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md">
+            Upload Music
+        </button>
+    </div>
+    
+    <div id="music-list" class="space-y-2">
+        <!-- Music files will be loaded here -->
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const LIBRARY_ID = '{{ library.id }}';
+const LIBRARY_SLUG = '{{ library.slug }}';
+let files = [];
+
+async function loadFiles() {
+    try {
+        const response = await fetch(`/api/libraries/${LIBRARY_ID}/files`);
+        const data = await response.json();
+        files = data.files;
+        renderFiles();
+    } catch (err) {
+        showToast('Failed to load files', 'error');
+    }
+}
+
+function renderFiles() {
+    const list = document.getElementById('music-list');
+    
+    if (files.length === 0) {
+        list.innerHTML = '<p class="text-gray-500">No music files yet.</p>';
+        return;
+    }
+    
+    list.innerHTML = files.map(file => `
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 flex items-center space-x-4">
+            <div class="flex-1">
+                <p class="font-medium text-gray-900">${file.original_name}</p>
+                <p class="text-sm text-gray-500">${formatBytes(file.size)}</p>
+            </div>
+            <audio controls class="w-64">
+                <source src="/media/${LIBRARY_SLUG}/file/${file.sha256}" type="${file.mime}">
+            </audio>
+        </div>
+    `).join('');
+}
+
+async function handleFileSelect(event) {
+    const selectedFiles = Array.from(event.target.files);
+    if (selectedFiles.length === 0) return;
+    
+    for (const file of selectedFiles) {
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        await fetch(`/api/libraries/${LIBRARY_ID}/files`, {
+            method: 'POST',
+            headers: {'X-CSRF-Token': getCSRFToken()},
+            body: formData,
+        });
+    }
+    
+    showToast(`Uploaded ${selectedFiles.length} files`);
+    loadFiles();
+    event.target.value = '';
+}
+
+loadFiles();
+</script>
+{% endblock %}
+

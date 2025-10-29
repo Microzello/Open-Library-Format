@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}Login - Library Manager{% endblock %}
+
+{% block content %}
+<div class="min-h-screen flex items-center justify-center">
+    <div class="max-w-md w-full bg-white shadow-lg rounded-lg p-8">
+        <h1 class="text-2xl font-bold text-gray-900 mb-6">Login</h1>
+        
+        <form id="login-form" class="space-y-4">
+            <div>
+                <label for="username" class="block text-sm font-medium text-gray-700">Username</label>
+                <input 
+                    type="text" 
+                    id="username" 
+                    name="username" 
+                    required
+                    class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                >
+            </div>
+            
+            <div>
+                <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
+                <input 
+                    type="password" 
+                    id="password" 
+                    name="password" 
+                    required
+                    class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                >
+            </div>
+            
+            <button 
+                type="submit"
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md"
+            >
+                Login
+            </button>
+        </form>
+        
+        <div id="error-message" class="mt-4 hidden text-red-600 text-sm"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('login-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const username = document.getElementById('username').value;
+    const password = document.getElementById('password').value;
+    const errorDiv = document.getElementById('error-message');
+    
+    errorDiv.classList.add('hidden');
+    
+    try {
+        const response = await fetch('/api/login', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({username, password}),
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            // Store CSRF token
+            if (data.csrf_token) {
+                document.querySelector('meta[name="csrf-token"]')?.setAttribute('content', data.csrf_token);
+            }
+            window.location.href = '/libraries';
+        } else {
+            const error = await response.json();
+            errorDiv.textContent = error.error?.message || 'Login failed';
+            errorDiv.classList.remove('hidden');
+        }
+    } catch (err) {
+        errorDiv.textContent = 'Network error';
+        errorDiv.classList.remove('hidden');
+    }
+});
+</script>
+{% endblock %}
+

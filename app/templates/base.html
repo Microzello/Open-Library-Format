@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Portable Library Manager{% endblock %}</title>
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/static/css/custom.css">
+    
+    <!-- CSRF Token -->
+    {% if csrf_token %}
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    {% endif %}
+    
+    {% block head %}{% endblock %}
+</head>
+<body class="bg-gray-50 min-h-screen">
+    {% if user %}
+    <nav class="bg-white shadow-sm border-b border-gray-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <a href="/libraries" class="text-xl font-bold text-gray-900">Library Manager</a>
+                    {% block nav_extra %}{% endblock %}
+                </div>
+                <div class="flex items-center space-x-4">
+                    <span class="text-sm text-gray-600">{{ user.username }}</span>
+                    <button onclick="logout()" class="text-sm text-red-600 hover:text-red-700">Logout</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+    {% endif %}
+    
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+    
+    <!-- Toast container -->
+    <div id="toast-container"></div>
+    
+    <!-- Global scripts -->
+    <script src="/static/js/utils.js"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>
+
