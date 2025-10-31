@@ -36,8 +36,9 @@ def get_trash_path(library_path: Path, sha256: str) -> Path:
 
 
 def get_thumb_path(library_path: Path, sha256: str, kind: str = "img") -> Path:
-    """Get full path to thumbnail."""
-    return library_path / "thumbs" / kind / shard_path(sha256)
+    """Get full path to thumbnail (without extension)."""
+    shard = shard_path(sha256)
+    return library_path / "thumbs" / kind / shard
 
 
 def atomic_move(src: Path, dest: Path) -> None:

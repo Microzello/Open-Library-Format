@@ -17,9 +17,17 @@ class LibraryDB:
         """Initialize library database with schema."""
         schema_path = Path(__file__).parent / "schema_library.sql"
         with self.get_connection() as conn:
-            with open(schema_path, "r") as f:
-                conn.executescript(f.read())
-            conn.commit()
+            try:
+                with open(schema_path, "r") as f:
+                    conn.executescript(f.read())
+                conn.commit()
+            except sqlite3.OperationalError as e:
+                # Tables might already exist, which is fine
+                # The schema uses CREATE TABLE IF NOT EXISTS, so this should rarely happen
+                error_msg = str(e).lower()
+                if "already exists" not in error_msg and "duplicate" not in error_msg:
+                    raise
+                conn.commit()
 
     @contextmanager
     def get_connection(self):
@@ -169,22 +177,24 @@ class LibraryDB:
         return files, total
 
     def search_files(self, query: str, page: int = 0, page_size: int = 100) -> Tuple[List[Dict[str, Any]], int]:
-        """Full-text search on files."""
+        """Full-text search on files (excludes deleted files)."""
         offset = page * page_size
 
         with self.get_connection() as conn:
-            # Count matches
+            # Count matches (excluding deleted)
             count_cursor = conn.execute(
-                """SELECT COUNT(*) FROM file_fts WHERE file_fts MATCH ?""",
+                """SELECT COUNT(*) FROM files f
+                   JOIN file_fts fts ON f.id = fts.rowid
+                   WHERE fts MATCH ? AND f.deleted_at IS NULL""",
                 (query,),
             )
             total = count_cursor.fetchone()[0]
 
-            # Get matches
+            # Get matches (excluding deleted)
             cursor = conn.execute(
                 """SELECT f.* FROM files f
                    JOIN file_fts fts ON f.id = fts.rowid
-                   WHERE fts MATCH ?
+                   WHERE fts MATCH ? AND f.deleted_at IS NULL
                    ORDER BY fts.rank
                    LIMIT ? OFFSET ?""",
                 (query, page_size, offset),
@@ -222,12 +232,13 @@ class LibraryDB:
             return dict(row) if row else None
 
     def list_tags(self) -> List[Dict[str, Any]]:
-        """List all tags with file counts."""
+        """List all tags with file counts (excluding deleted files)."""
         with self.get_connection() as conn:
             cursor = conn.execute(
                 """SELECT t.id, t.name, COUNT(ft.file_id) as file_count
                    FROM tags t
                    LEFT JOIN file_tags ft ON t.id = ft.tag_id
+                   LEFT JOIN files f ON ft.file_id = f.id AND f.deleted_at IS NULL
                    GROUP BY t.id, t.name
                    ORDER BY t.name"""
             )

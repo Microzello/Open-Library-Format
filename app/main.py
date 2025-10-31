@@ -194,8 +194,11 @@ def libraries_page(request: Request):
     # Get CSRF token
     auth_manager = app.state.auth_manager
     session_token = request.cookies.get(auth_manager.session_cookie_name)
-    csrf_token = app.state.csrf_tokens.get(session_token, auth_manager.generate_csrf_token())
-    app.state.csrf_tokens[session_token] = csrf_token
+    if session_token:
+        csrf_token = app.state.csrf_tokens.get(session_token, auth_manager.generate_csrf_token())
+        app.state.csrf_tokens[session_token] = csrf_token
+    else:
+        csrf_token = None
     
     return templates.TemplateResponse("libraries.html", {
         "request": request,
@@ -224,7 +227,9 @@ def browse_library(request: Request, library_id: str):
     # Get CSRF token
     auth_manager = app.state.auth_manager
     session_token = request.cookies.get(auth_manager.session_cookie_name)
-    csrf_token = app.state.csrf_tokens.get(session_token)
+    csrf_token = None
+    if session_token:
+        csrf_token = app.state.csrf_tokens.get(session_token)
     
     # Choose template based on library type
     if lib["type"] == "photo_video":
@@ -264,7 +269,9 @@ def tags_page(request: Request, library_id: str):
     # Get CSRF token
     auth_manager = app.state.auth_manager
     session_token = request.cookies.get(auth_manager.session_cookie_name)
-    csrf_token = app.state.csrf_tokens.get(session_token)
+    csrf_token = None
+    if session_token:
+        csrf_token = app.state.csrf_tokens.get(session_token)
     
     return templates.TemplateResponse("tags.html", {
         "request": request,
@@ -294,7 +301,9 @@ def trash_page(request: Request, library_id: str):
     # Get CSRF token
     auth_manager = app.state.auth_manager
     session_token = request.cookies.get(auth_manager.session_cookie_name)
-    csrf_token = app.state.csrf_tokens.get(session_token)
+    csrf_token = None
+    if session_token:
+        csrf_token = app.state.csrf_tokens.get(session_token)
     
     # Check if purge is allowed
     allow_purge = os.getenv("ALLOW_PURGE", "false").lower() == "true"

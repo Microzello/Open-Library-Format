@@ -19,9 +19,17 @@ class RegistryDB:
         """Initialize the registry database with schema."""
         schema_path = Path(__file__).parent / "schema_registry.sql"
         with self.get_connection() as conn:
-            with open(schema_path, "r") as f:
-                conn.executescript(f.read())
-            conn.commit()
+            try:
+                with open(schema_path, "r") as f:
+                    conn.executescript(f.read())
+                conn.commit()
+            except sqlite3.OperationalError as e:
+                # Tables might already exist, which is fine
+                # The schema uses CREATE TABLE IF NOT EXISTS, so this should rarely happen
+                error_msg = str(e).lower()
+                if "already exists" not in error_msg and "duplicate" not in error_msg:
+                    raise
+                conn.commit()
 
     @contextmanager
     def get_connection(self):

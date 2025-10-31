@@ -91,9 +91,15 @@ def verify_csrf(request: Request) -> None:
     # For now, we'll generate CSRF per-session and store in app state
     # A more robust approach would use signed tokens or database storage
     session_token = request.cookies.get(auth_manager.session_cookie_name)
+    if not session_token:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="CSRF validation failed: no session"
+        )
+    
     expected_token = request.app.state.csrf_tokens.get(session_token)
     
-    if not token or token != expected_token:
+    if not token or not expected_token or token != expected_token:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="CSRF validation failed"

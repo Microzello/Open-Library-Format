@@ -80,7 +80,7 @@ def create_tag(request: Request, library_id: str, data: TagCreate):
     return tag
 
 
-@router.post("/../files/{file_id}/tags", status_code=status.HTTP_204_NO_CONTENT)
+@router.post("/files/{file_id}/tags", status_code=status.HTTP_204_NO_CONTENT)
 def add_tag_to_file(request: Request, library_id: str, file_id: int, data: AddTagRequest):
     """Add a tag to a file."""
     require_auth(request)
@@ -118,7 +118,7 @@ def add_tag_to_file(request: Request, library_id: str, file_id: int, data: AddTa
     return None
 
 
-@router.delete("/../files/{file_id}/tags/{tag_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/files/{file_id}/tags/{tag_id}", status_code=status.HTTP_204_NO_CONTENT)
 def remove_tag_from_file(request: Request, library_id: str, file_id: int, tag_id: int):
     """Remove a tag from a file."""
     require_auth(request)
