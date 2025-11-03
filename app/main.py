@@ -32,8 +32,6 @@ async def lifespan(app: FastAPI):
     # Initialize registry DB
     registry_db = RegistryDB()
     app.state.registry_db = registry_db
-    
-    # Initialize auth manager
     secret = os.getenv("APP_SECRET", "change_me")
     if secret == "change_me":
         logger.warning("Using default APP_SECRET - change this in production!")
@@ -45,7 +43,8 @@ async def lifespan(app: FastAPI):
     app.state.csrf_tokens = {}
     
     # Check if bootstrap needed
-    bootstrap_sentinel = Path("var/bootstrap_done")
+    bootstrap_sentinel = Path("/app/var/bootstrap_done")
+    bootstrap_sentinel.parent.mkdir(parents=True, exist_ok=True)
     app.state.bootstrap_needed = not bootstrap_sentinel.exists() and not registry_db.has_any_users()
     
     if app.state.bootstrap_needed:
@@ -63,7 +62,6 @@ async def lifespan(app: FastAPI):
             if admin_user and admin_pass_hash:
                 logger.info("Creating admin user from environment")
                 registry_db.create_user(admin_user, admin_pass_hash, role="admin")
-                bootstrap_sentinel.parent.mkdir(parents=True, exist_ok=True)
                 bootstrap_sentinel.touch()
                 app.state.bootstrap_needed = False
     else:
@@ -124,7 +122,7 @@ async def add_security_headers(request: Request, call_next):
 async def bootstrap_redirect(request: Request, call_next):
     if app.state.bootstrap_needed:
         # Allow only setup and static routes
-        if request.url.path.startswith("/api/setup") or request.url.path.startswith("/static"):
+        if request.url.path.startswith("/api/setup") or request.url.path.startswith("/static") or request.url.path.startswith("/api/health"):
             return await call_next(request)
         elif request.url.path == "/setup":
             return await call_next(request)
@@ -194,8 +192,13 @@ def libraries_page(request: Request):
     # Get CSRF token
     auth_manager = app.state.auth_manager
     session_token = request.cookies.get(auth_manager.session_cookie_name)
-    csrf_token = app.state.csrf_tokens.get(session_token, auth_manager.generate_csrf_token())
-    app.state.csrf_tokens[session_token] = csrf_token
+    if not session_token:
+        csrf_token = None
+    else:
+        csrf_token = app.state.csrf_tokens.get(session_token)
+        if not csrf_token:
+            csrf_token = auth_manager.generate_csrf_token()
+            app.state.csrf_tokens[session_token] = csrf_token
     
     return templates.TemplateResponse("libraries.html", {
         "request": request,
@@ -224,7 +227,13 @@ def browse_library(request: Request, library_id: str):
     # Get CSRF token
     auth_manager = app.state.auth_manager
     session_token = request.cookies.get(auth_manager.session_cookie_name)
-    csrf_token = app.state.csrf_tokens.get(session_token)
+    if not session_token:
+        csrf_token = None
+    else:
+        csrf_token = app.state.csrf_tokens.get(session_token)
+        if not csrf_token:
+            csrf_token = auth_manager.generate_csrf_token()
+            app.state.csrf_tokens[session_token] = csrf_token
     
     # Choose template based on library type
     if lib["type"] == "photo_video":
@@ -264,7 +273,13 @@ def tags_page(request: Request, library_id: str):
     # Get CSRF token
     auth_manager = app.state.auth_manager
     session_token = request.cookies.get(auth_manager.session_cookie_name)
-    csrf_token = app.state.csrf_tokens.get(session_token)
+    if not session_token:
+        csrf_token = None
+    else:
+        csrf_token = app.state.csrf_tokens.get(session_token)
+        if not csrf_token:
+            csrf_token = auth_manager.generate_csrf_token()
+            app.state.csrf_tokens[session_token] = csrf_token
     
     return templates.TemplateResponse("tags.html", {
         "request": request,
@@ -294,7 +309,13 @@ def trash_page(request: Request, library_id: str):
     # Get CSRF token
     auth_manager = app.state.auth_manager
     session_token = request.cookies.get(auth_manager.session_cookie_name)
-    csrf_token = app.state.csrf_tokens.get(session_token)
+    if not session_token:
+        csrf_token = None
+    else:
+        csrf_token = app.state.csrf_tokens.get(session_token)
+        if not csrf_token:
+            csrf_token = auth_manager.generate_csrf_token()
+            app.state.csrf_tokens[session_token] = csrf_token
     
     # Check if purge is allowed
     allow_purge = os.getenv("ALLOW_PURGE", "false").lower() == "true"

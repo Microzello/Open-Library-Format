@@ -11,7 +11,8 @@ router = APIRouter(tags=["setup"])
 def bootstrap_setup(request: Request, response: Response, data: SetupRequest):
     """Bootstrap wizard - create first admin user."""
     # Check if already bootstrapped
-    bootstrap_sentinel = Path("var/bootstrap_done")
+    bootstrap_sentinel = Path("/app/var/bootstrap_done")
+    bootstrap_sentinel.parent.mkdir(parents=True, exist_ok=True)
     if bootstrap_sentinel.exists():
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

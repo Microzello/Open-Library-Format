@@ -128,7 +128,12 @@ async def upload_file(
     file_rec = lib_db.get_file_by_id(file_id)
     if file_rec:
         thumb_service = ThumbnailService(lib_path)
-        thumb_service.generate_thumbnail(sha256, file_rec["mime"])
+        try:
+            thumb_service.generate_thumbnail(sha256, file_rec["mime"])
+        except Exception as e:
+            # Log but don't fail upload if thumbnail generation fails
+            import logging
+            logging.getLogger(__name__).warning(f"Thumbnail generation failed for {sha256}: {e}")
     
     return {
         "status": status_str,

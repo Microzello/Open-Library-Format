@@ -66,7 +66,7 @@ class SchedulerService:
                 report = reconciler.reconcile()
                 
                 # Log report
-                log_file = Path("var") / f"reconcile_{lib['slug']}_{datetime.now().strftime('%Y%m%d')}.log"
+                log_file = Path("/app/var") / f"reconcile_{lib['slug']}_{datetime.now().strftime('%Y%m%d')}.log"
                 log_file.parent.mkdir(parents=True, exist_ok=True)
                 
                 with open(log_file, "w") as f:

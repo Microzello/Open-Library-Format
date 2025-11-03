@@ -17,9 +17,15 @@ class LibraryDB:
         """Initialize library database with schema."""
         schema_path = Path(__file__).parent / "schema_library.sql"
         with self.get_connection() as conn:
-            with open(schema_path, "r") as f:
-                conn.executescript(f.read())
-            conn.commit()
+            try:
+                with open(schema_path, "r") as f:
+                    conn.executescript(f.read())
+                conn.commit()
+            except sqlite3.OperationalError as e:
+                # Schema already exists or other operational error - check if tables exist
+                if "already exists" not in str(e).lower():
+                    # Only raise if it's not a "table already exists" error
+                    raise
 
     @contextmanager
     def get_connection(self):

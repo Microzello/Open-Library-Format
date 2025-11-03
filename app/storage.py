@@ -48,9 +48,18 @@ def atomic_move(src: Path, dest: Path) -> None:
     """
     dest.parent.mkdir(parents=True, exist_ok=True)
     
+    # If destination exists, that's OK (content-addressed, same hash)
+    if dest.exists():
+        src.unlink()
+        return
+    
     # Sync file contents to disk
-    with open(src, 'rb') as f:
-        os.fsync(f.fileno())
+    try:
+        with open(src, 'rb') as f:
+            os.fsync(f.fileno())
+    except OSError:
+        # On some systems/fsync may not be available, continue anyway
+        pass
     
     # Atomic rename (same filesystem)
     shutil.move(str(src), str(dest))

@@ -93,6 +93,7 @@ def serve_file(
         return FileResponse(
             path=str(file_path),
             media_type="application/octet-stream",
+            headers={"Accept-Ranges": "bytes"},
         )
 
 

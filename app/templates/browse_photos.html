@@ -140,7 +140,9 @@ function renderFiles() {
     }
     
     grid.innerHTML = files.map(file => {
-        const thumbUrl = `/media/${LIBRARY_SLUG}/thumbs/img/${file.sha256}.jpg`;
+        const isVideo = file.mime && file.mime.startsWith('video/');
+        const thumbKind = isVideo ? 'vid' : 'img';
+        const thumbUrl = `/media/${LIBRARY_SLUG}/thumbs/${thumbKind}/${file.sha256}.jpg`;
         return `
             <div class="grid-item aspect-square bg-gray-100 rounded-lg overflow-hidden">
                 <img 

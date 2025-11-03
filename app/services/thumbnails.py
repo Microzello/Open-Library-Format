@@ -14,7 +14,7 @@ class ThumbnailService:
     THUMB_SIZE = 512
 
     def __init__(self, library_path: Path):
-        self.library_path = library_path
+        self.library_path = Path(library_path)
 
     def generate_image_thumbnail(self, sha256: str) -> bool:
         """Generate thumbnail for an image."""

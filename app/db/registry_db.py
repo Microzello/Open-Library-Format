@@ -10,7 +10,7 @@ from contextlib import contextmanager
 class RegistryDB:
     """Manages the global registry database."""
 
-    def __init__(self, db_path: str = "var/registry.db"):
+    def __init__(self, db_path: str = "/app/var/registry.db"):
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
@@ -19,9 +19,15 @@ class RegistryDB:
         """Initialize the registry database with schema."""
         schema_path = Path(__file__).parent / "schema_registry.sql"
         with self.get_connection() as conn:
-            with open(schema_path, "r") as f:
-                conn.executescript(f.read())
-            conn.commit()
+            try:
+                with open(schema_path, "r") as f:
+                    conn.executescript(f.read())
+                conn.commit()
+            except sqlite3.OperationalError as e:
+                # Schema already exists or other operational error - check if tables exist
+                if "already exists" not in str(e).lower():
+                    # Only raise if it's not a "table already exists" error
+                    raise
 
     @contextmanager
     def get_connection(self):

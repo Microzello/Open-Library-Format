@@ -21,7 +21,7 @@ class IngestService:
 
     def __init__(self, library_db: LibraryDB, library_path: Path, library_type: str, library_tz: str = "UTC"):
         self.db = library_db
-        self.library_path = library_path
+        self.library_path = Path(library_path)
         self.library_type = library_type
         self.library_tz = library_tz
 
