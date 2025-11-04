@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Portable Media Library</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <h1>Portable Media Library</h1>
+      <div class="controls">
+        <select id="librarySelect"></select>
+        <button id="newLibraryBtn">New Library</button>
+        <input type="file" id="uploadInput" multiple />
+      </div>
+      <div class="status" id="status"></div>
+    </header>
+
+    <main class="container">
+      <div class="toolbar">
+        <select id="typeFilter">
+          <option value="">All</option>
+          <option value="photo">Photos</option>
+          <option value="video">Videos</option>
+        </select>
+        <input type="text" id="searchInput" placeholder="Search filename..." />
+        <div class="tags">
+          <span>Tags:</span>
+          <div id="tagsList" class="tags-list"></div>
+          <select id="tagMode">
+            <option value="and">AND</option>
+            <option value="or">OR</option>
+          </select>
+        </div>
+        <div class="bulk-actions">
+          <button id="deleteSelected">Delete Selected</button>
+          <button id="downloadSelected">Download Selected</button>
+        </div>
+      </div>
+      <div id="gallery" class="grid"></div>
+    </main>
+
+    <div id="detailModal" class="modal hidden">
+      <div class="modal-content">
+        <button class="close" id="closeModal">×</button>
+        <div id="viewer"></div>
+        <div class="props">
+          <div id="meta"></div>
+          <div class="tags-editor">
+            <div id="mediaTags" class="tags-list"></div>
+            <input id="newTagName" placeholder="Add tag..." />
+            <button id="addTagBtn">Add</button>
+          </div>
+          <div class="row">
+            <button id="deleteOne">Delete</button>
+            <a id="downloadOne" target="_blank">Download</a>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+  </html>
+
+

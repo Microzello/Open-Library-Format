@@ -1,0 +1,84 @@
+:root {
+  --bg: #0f1115;
+  --fg: #e5e7eb;
+  --muted: #9aa0a6;
+  --accent: #3b82f6;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid #1f2330;
+}
+
+.container {
+  padding: 16px;
+}
+
+.status {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 8px;
+}
+
+.tile {
+  position: relative;
+  background: #161a22;
+  border: 1px solid #202636;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.tile img, .tile video {
+  width: 100%;
+  height: 160px;
+  object-fit: cover;
+  display: block;
+}
+
+.tile .meta {
+  padding: 6px 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.tags { display: flex; align-items: center; gap: 8px; }
+.tags-list { display: flex; gap: 6px; flex-wrap: wrap; }
+.tag { background: #1f2535; color: #c9d1d9; padding: 2px 6px; border-radius: 4px; font-size: 12px; cursor: pointer; }
+.tag.selected { background: var(--accent); color: white; }
+
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,0.65); display: flex; align-items: center; justify-content: center; }
+.modal.hidden { display: none; }
+.modal-content { background: #0e121a; border: 1px solid #202636; max-width: 92vw; max-height: 92vh; padding: 12px; display: grid; grid-template-columns: 1fr 320px; gap: 12px; }
+.modal-content .close { position: absolute; right: 16px; top: 8px; font-size: 22px; background: transparent; color: var(--fg); border: none; cursor: pointer; }
+#viewer img, #viewer video { max-width: 70vw; max-height: 85vh; }
+.props { font-size: 13px; color: var(--fg); display: flex; flex-direction: column; gap: 10px; }
+
+
