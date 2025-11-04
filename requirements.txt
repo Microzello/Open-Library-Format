@@ -3,4 +3,3 @@ uvicorn[standard]
 pillow
 python-multipart
 python-dotenv
-pydantic-settings
