@@ -1,67 +1,92 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Portable Media Library</title>
-    <link rel="stylesheet" href="/styles.css" />
+    <title>Open Library Format</title>
+    <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <header class="topbar">
-      <h1>Portable Media Library</h1>
-      <div class="controls">
-        <select id="librarySelect"></select>
-        <button id="newLibraryBtn">New Library</button>
-        <input type="file" id="uploadInput" multiple />
+    <header class="app-header">
+      <div class="brand">
+        <h1>Open Library Format</h1>
+        <p class="subtitle">Self-hosted media library</p>
       </div>
-      <div class="status" id="status"></div>
+      <div class="library-picker">
+        <label for="librarySelect">Library</label>
+        <select id="librarySelect"></select>
+        <button id="createLibraryBtn" class="primary">New Library</button>
+      </div>
     </header>
 
-    <main class="container">
-      <div class="toolbar">
-        <select id="typeFilter">
-          <option value="">All</option>
-          <option value="photo">Photos</option>
-          <option value="video">Videos</option>
-        </select>
-        <input type="text" id="searchInput" placeholder="Search filename..." />
-        <div class="tags">
-          <span>Tags:</span>
-          <div id="tagsList" class="tags-list"></div>
-          <select id="tagMode">
-            <option value="and">AND</option>
-            <option value="or">OR</option>
+    <main class="app-main">
+      <section class="toolbar">
+        <div class="toolbar-group">
+          <button id="uploadBtn" class="primary">Upload</button>
+          <input id="fileInput" type="file" multiple hidden />
+          <button id="deleteSelectedBtn" class="danger" disabled>Delete Selected</button>
+          <button id="downloadSelectedBtn" disabled>Download Selected</button>
+        </div>
+        <div class="toolbar-group filters">
+          <input id="searchInput" type="search" placeholder="Search by filename" />
+          <div class="tag-filter">
+            <label for="tagFilter">Tags</label>
+            <select id="tagFilter" multiple></select>
+          </div>
+          <div class="date-filter">
+            <label>Taken from</label>
+            <input id="takenFrom" type="date" />
+          </div>
+          <div class="date-filter">
+            <label>Taken to</label>
+            <input id="takenTo" type="date" />
+          </div>
+          <select id="sortSelect">
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="taken">Taken date</option>
           </select>
         </div>
-        <div class="bulk-actions">
-          <button id="deleteSelected">Delete Selected</button>
-          <button id="downloadSelected">Download Selected</button>
-        </div>
-      </div>
-      <div id="gallery" class="grid"></div>
+      </section>
+
+      <section id="gallery" class="gallery"></section>
     </main>
 
-    <div id="detailModal" class="modal hidden">
+    <div id="detailModal" class="modal hidden" role="dialog" aria-modal="true">
       <div class="modal-content">
-        <button class="close" id="closeModal">×</button>
-        <div id="viewer"></div>
-        <div class="props">
-          <div id="meta"></div>
-          <div class="tags-editor">
-            <div id="mediaTags" class="tags-list"></div>
-            <input id="newTagName" placeholder="Add tag..." />
-            <button id="addTagBtn">Add</button>
-          </div>
-          <div class="row">
-            <button id="deleteOne">Delete</button>
-            <a id="downloadOne" target="_blank">Download</a>
+        <button id="closeModalBtn" class="close">×</button>
+        <div class="modal-body">
+          <div class="preview" id="detailPreview"></div>
+          <div class="metadata">
+            <h2 id="detailTitle"></h2>
+            <dl id="metadataList"></dl>
+            <div class="tag-editor">
+              <label for="tagEditorInput">Tags</label>
+              <input id="tagEditorInput" type="text" placeholder="Comma separated" />
+              <div class="tag-editor-actions">
+                <button id="saveTagsBtn" class="primary">Save Tags</button>
+                <button id="deleteMediaBtn" class="danger">Delete</button>
+                <button id="downloadMediaBtn">Download</button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
-    </main>
+    </div>
 
-    <script src="/app.js" type="module"></script>
+    <template id="galleryItemTemplate">
+      <article class="gallery-item">
+        <div class="thumbnail"></div>
+        <div class="item-footer">
+          <span class="filename"></span>
+          <div class="item-actions">
+            <input type="checkbox" class="select-checkbox" />
+            <button class="info-btn">Info</button>
+          </div>
+        </div>
+      </article>
+    </template>
+
+    <script src="app.js" type="module"></script>
   </body>
-  </html>
-
-
+</html>

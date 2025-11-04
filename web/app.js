@@ -1,266 +1,436 @@
-const statusEl = document.getElementById('status');
-const libSelect = document.getElementById('librarySelect');
-const newLibraryBtn = document.getElementById('newLibraryBtn');
-const uploadInput = document.getElementById('uploadInput');
-const typeFilter = document.getElementById('typeFilter');
-const searchInput = document.getElementById('searchInput');
-const galleryEl = document.getElementById('gallery');
-const tagsListEl = document.getElementById('tagsList');
-const tagModeEl = document.getElementById('tagMode');
-const deleteSelectedBtn = document.getElementById('deleteSelected');
-const downloadSelectedBtn = document.getElementById('downloadSelected');
+const apiBase = "/api";
 
-// Modal elements
-const modal = document.getElementById('detailModal');
-const closeModalBtn = document.getElementById('closeModal');
-const viewerEl = document.getElementById('viewer');
-const metaEl = document.getElementById('meta');
-const mediaTagsEl = document.getElementById('mediaTags');
-const newTagNameEl = document.getElementById('newTagName');
-const addTagBtn = document.getElementById('addTagBtn');
-const deleteOneBtn = document.getElementById('deleteOne');
-const downloadOneA = document.getElementById('downloadOne');
+const state = {
+  libraries: [],
+  currentLibrary: null,
+  media: [],
+  tags: [],
+  selected: new Set(),
+  detail: null,
+};
 
-let currentLib = null;
-let page = 1;
-let selected = new Set();
-let activeTags = new Set();
-let currentDetail = null;
+const elements = {
+  librarySelect: document.getElementById("librarySelect"),
+  createLibraryBtn: document.getElementById("createLibraryBtn"),
+  uploadBtn: document.getElementById("uploadBtn"),
+  fileInput: document.getElementById("fileInput"),
+  gallery: document.getElementById("gallery"),
+  galleryItemTemplate: document.getElementById("galleryItemTemplate"),
+  searchInput: document.getElementById("searchInput"),
+  tagFilter: document.getElementById("tagFilter"),
+  takenFrom: document.getElementById("takenFrom"),
+  takenTo: document.getElementById("takenTo"),
+  sortSelect: document.getElementById("sortSelect"),
+  deleteSelectedBtn: document.getElementById("deleteSelectedBtn"),
+  downloadSelectedBtn: document.getElementById("downloadSelectedBtn"),
+  modal: document.getElementById("detailModal"),
+  closeModalBtn: document.getElementById("closeModalBtn"),
+  detailPreview: document.getElementById("detailPreview"),
+  detailTitle: document.getElementById("detailTitle"),
+  metadataList: document.getElementById("metadataList"),
+  tagEditorInput: document.getElementById("tagEditorInput"),
+  saveTagsBtn: document.getElementById("saveTagsBtn"),
+  deleteMediaBtn: document.getElementById("deleteMediaBtn"),
+  downloadMediaBtn: document.getElementById("downloadMediaBtn"),
+};
 
-async function api(path, opts = {}) {
-  const res = await fetch(path, opts);
-  if (!res.ok) throw new Error(await res.text());
-  return res;
-}
+document.addEventListener("DOMContentLoaded", () => {
+  elements.createLibraryBtn.addEventListener("click", onCreateLibrary);
+  elements.librarySelect.addEventListener("change", onSelectLibrary);
+  elements.uploadBtn.addEventListener("click", () => elements.fileInput.click());
+  elements.fileInput.addEventListener("change", onUploadFiles);
+  elements.searchInput.addEventListener("input", debounce(reloadMedia, 300));
+  elements.tagFilter.addEventListener("change", reloadMedia);
+  elements.takenFrom.addEventListener("change", reloadMedia);
+  elements.takenTo.addEventListener("change", reloadMedia);
+  elements.sortSelect.addEventListener("change", reloadMedia);
+  elements.deleteSelectedBtn.addEventListener("click", onDeleteSelected);
+  elements.downloadSelectedBtn.addEventListener("click", onDownloadSelected);
+  elements.closeModalBtn.addEventListener("click", closeModal);
+  elements.saveTagsBtn.addEventListener("click", onSaveTags);
+  elements.deleteMediaBtn.addEventListener("click", onDeleteMedia);
+  elements.downloadMediaBtn.addEventListener("click", onDownloadMedia);
+  elements.modal.addEventListener("click", (event) => {
+    if (event.target === elements.modal) {
+      closeModal();
+    }
+  });
+
+  loadLibraries();
+});
 
 async function loadLibraries() {
-  const res = await api('/api/libraries');
-  const libs = await res.json();
-  libSelect.innerHTML = '';
-  libs.forEach(l => {
-    const opt = document.createElement('option');
-    opt.value = l.id;
-    opt.textContent = `${l.name}`;
-    libSelect.appendChild(opt);
-  });
-  if (!currentLib && libs.length) {
-    currentLib = libs[0].id;
-    libSelect.value = currentLib;
-    renderGallery(true);
-    loadTags();
-  }
-}
-
-async function createLibrary() {
-  const name = prompt('Library name?');
-  if (!name) return;
-  await api('/api/libraries', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
-  await loadLibraries();
-}
-
-async function uploadFiles(files) {
-  if (!currentLib) return;
-  const fd = new FormData();
-  for (const f of files) fd.append('files', f);
   try {
-    const res = await api(`/api/libraries/${currentLib}/upload`, { method: 'POST', body: fd });
-    const json = await res.json();
-    statusEl.textContent = `Uploaded ${json.inserted?.length ?? 0} item(s)`;
-    await renderGallery(true);
-  } catch (e) {
-    statusEl.textContent = `Upload failed: ${e}`;
+    const response = await fetch(`${apiBase}/libraries`);
+    if (!response.ok) throw new Error("Failed to load libraries");
+    state.libraries = await response.json();
+    renderLibraryOptions();
+    if (state.libraries.length > 0) {
+      const first = state.libraries[0];
+      state.currentLibrary = first.id;
+      elements.librarySelect.value = first.id;
+      await Promise.all([loadTags(), reloadMedia()]);
+    }
+  } catch (error) {
+    console.error(error);
+    alert("Unable to load libraries. Create one to get started.");
   }
+}
+
+function renderLibraryOptions() {
+  elements.librarySelect.innerHTML = "";
+  state.libraries.forEach((library) => {
+    const option = document.createElement("option");
+    option.value = library.id;
+    option.textContent = library.name;
+    elements.librarySelect.appendChild(option);
+  });
+}
+
+async function onCreateLibrary() {
+  const name = prompt("Library name");
+  if (!name) return;
+  try {
+    const response = await fetch(`${apiBase}/libraries`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    if (!response.ok) throw new Error("Failed to create library");
+    const library = await response.json();
+    state.libraries.push(library);
+    renderLibraryOptions();
+    state.currentLibrary = library.id;
+    elements.librarySelect.value = library.id;
+    await Promise.all([loadTags(), reloadMedia()]);
+  } catch (error) {
+    console.error(error);
+    alert("Unable to create library");
+  }
+}
+
+async function onSelectLibrary() {
+  state.currentLibrary = elements.librarySelect.value;
+  state.selected.clear();
+  updateSelectionState();
+  await Promise.all([loadTags(), reloadMedia()]);
 }
 
 async function loadTags() {
-  if (!currentLib) return;
-  const res = await api(`/api/libraries/${currentLib}/tags`);
-  const tags = await res.json();
-  tagsListEl.innerHTML = '';
-  tags.forEach(t => {
-    const span = document.createElement('span');
-    span.className = 'tag' + (activeTags.has(t.id) ? ' selected' : '');
-    span.textContent = t.name;
-    span.onclick = () => {
-      if (activeTags.has(t.id)) activeTags.delete(t.id); else activeTags.add(t.id);
-      renderGallery(true);
-      renderTags(tags);
-    };
-    tagsListEl.appendChild(span);
+  if (!state.currentLibrary) return;
+  const response = await fetch(`${apiBase}/libraries/${state.currentLibrary}/tags`);
+  if (!response.ok) return;
+  state.tags = await response.json();
+  renderTagFilter();
+}
+
+function renderTagFilter() {
+  elements.tagFilter.innerHTML = "";
+  state.tags.forEach((tag) => {
+    const option = document.createElement("option");
+    option.value = tag.name;
+    option.textContent = tag.name;
+    elements.tagFilter.appendChild(option);
   });
 }
 
-function renderTags(tags) {
-  let idx = 0;
-  tagsListEl.childNodes.forEach(node => {
-    if (node.classList && node.classList.contains('tag')) {
-      const tagId = tags[idx]?.id;
-      node.classList.toggle('selected', !!(tagId && activeTags.has(tagId)));
-      idx++;
-    }
-  });
-}
-
-async function renderGallery(reset = false) {
-  if (!currentLib) return;
-  if (reset) {
-    page = 1;
-    galleryEl.innerHTML = '';
-    selected.clear();
-  }
+async function reloadMedia() {
+  if (!state.currentLibrary) return;
   const params = new URLSearchParams();
-  params.set('page', String(page));
-  params.set('size', '50');
-  params.set('sort', 'newest');
-  if (typeFilter.value) params.set('type', typeFilter.value);
-  if (searchInput.value) params.set('q', searchInput.value);
-  if (activeTags.size) [...activeTags].forEach(t => params.append('tagIds', t));
-  params.set('tagMode', tagModeEl.value);
-  const res = await api(`/api/libraries/${currentLib}/media?${params.toString()}`);
-  const data = await res.json();
-  statusEl.textContent = `Total: ${data.total}`;
-  data.items.forEach(item => {
-    const tile = document.createElement('div');
-    tile.className = 'tile';
-    const thumb = document.createElement(item.type === 'video' ? 'video' : 'img');
-    thumb.src = `/api/libraries/${currentLib}/media/${item.id}/thumb`;
-    if (item.type === 'video') thumb.muted = true;
-    tile.appendChild(thumb);
-    const meta = document.createElement('div');
-    meta.className = 'meta';
-    meta.textContent = item.original_filename;
-    tile.appendChild(meta);
-    tile.onclick = (e) => {
-      if (e.shiftKey || e.ctrlKey) {
-        if (selected.has(item.id)) selected.delete(item.id); else selected.add(item.id);
-        tile.classList.toggle('selected');
+  const search = elements.searchInput.value.trim();
+  if (search) params.set("search", search);
+  const selectedTags = Array.from(elements.tagFilter.selectedOptions).map((option) => option.value);
+  selectedTags.forEach((tag) => params.append("tags", tag));
+  const takenFrom = elements.takenFrom.value;
+  const takenTo = elements.takenTo.value;
+  if (takenFrom) params.set("takenFrom", Math.floor(new Date(takenFrom).getTime() / 1000));
+  if (takenTo) params.set("takenTo", Math.floor(new Date(takenTo).getTime() / 1000) + 86399);
+  const sort = elements.sortSelect.value;
+  if (sort) params.set("sort", sort);
+
+  const query = params.toString();
+  const url = `${apiBase}/libraries/${state.currentLibrary}/media${query ? `?${query}` : ""}`;
+  const response = await fetch(url);
+  if (!response.ok) {
+    console.error("Failed to load media");
+    return;
+  }
+  state.media = await response.json();
+  state.selected.clear();
+  renderGallery();
+  updateSelectionState();
+}
+
+function renderGallery() {
+  elements.gallery.innerHTML = "";
+  if (state.media.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "empty";
+    empty.textContent = "This library has no media yet. Upload to get started.";
+    elements.gallery.appendChild(empty);
+    return;
+  }
+
+  state.media.forEach((item) => {
+    const node = elements.galleryItemTemplate.content.firstElementChild.cloneNode(true);
+    const thumbnailContainer = node.querySelector(".thumbnail");
+    const filename = node.querySelector(".filename");
+    const infoBtn = node.querySelector(".info-btn");
+    const checkbox = node.querySelector(".select-checkbox");
+
+    filename.textContent = item.original_filename;
+    checkbox.checked = state.selected.has(item.id);
+    checkbox.addEventListener("change", () => {
+      if (checkbox.checked) {
+        state.selected.add(item.id);
       } else {
-        openDetail(item);
+        state.selected.delete(item.id);
       }
-    };
-    galleryEl.appendChild(tile);
-  });
-}
+      updateSelectionState();
+    });
 
-async function openDetail(item) {
-  currentDetail = item;
-  const detailRes = await api(`/api/libraries/${currentLib}/media/${item.id}`);
-  const detail = await detailRes.json();
-  viewerEl.innerHTML = '';
-  const playRes = await api(`/api/libraries/${currentLib}/media/${item.id}/play`);
-  const play = await playRes.json();
-  if (playRes.status === 202) {
-    // preparing proxy, poll a few times
-    for (let i = 0; i < 8; i++) {
-      await new Promise(r => setTimeout(r, 1000));
-      const tryRes = await fetch(`/api/libraries/${currentLib}/media/${item.id}/play`);
-      if (tryRes.ok) {
-        const tryJson = await tryRes.json();
-        if (tryJson.url) {
-          viewerEl.innerHTML = '';
-          const v = document.createElement('video');
-          v.controls = true;
-          v.src = tryJson.url;
-          viewerEl.appendChild(v);
-          break;
-        }
-      }
+    infoBtn.addEventListener("click", () => openDetail(item.id));
+    thumbnailContainer.addEventListener("dblclick", () => openDetail(item.id));
+
+    if (item.media_type === "photo") {
+      const img = document.createElement("img");
+      img.src = `${apiBase}/libraries/${state.currentLibrary}/media/${item.id}/thumbnail`;
+      img.alt = item.original_filename;
+      thumbnailContainer.appendChild(img);
+    } else if (item.media_type === "video") {
+      const video = document.createElement("video");
+      video.src = `${apiBase}/libraries/${state.currentLibrary}/media/${item.id}/content`;
+      video.muted = true;
+      video.loop = true;
+      video.autoplay = true;
+      video.playsInline = true;
+      thumbnailContainer.appendChild(video);
+    } else {
+      const placeholder = document.createElement("span");
+      placeholder.textContent = item.mime_type;
+      thumbnailContainer.appendChild(placeholder);
     }
-  }
-  if (play.kind === 'image') {
-    const img = document.createElement('img');
-    img.src = play.url;
-    viewerEl.appendChild(img);
-  } else if (play.kind === 'video' && play.url) {
-    const v = document.createElement('video');
-    v.controls = true;
-    v.src = play.url;
-    viewerEl.appendChild(v);
-  }
-  metaEl.textContent = `${detail.original_filename} • ${(detail.width||'')}${detail.width?'x':''}${detail.height||''}`;
-  renderMediaTags(detail.tags || []);
-  downloadOneA.href = `/api/libraries/${currentLib}/media/${item.id}/download`;
-  modal.classList.remove('hidden');
-}
 
-function renderMediaTags(tags) {
-  mediaTagsEl.innerHTML = '';
-  tags.forEach(t => {
-    const span = document.createElement('span');
-    span.className = 'tag';
-    span.textContent = t.name;
-    span.title = 'Click to remove';
-    span.onclick = async () => {
-      await api(`/api/libraries/${currentLib}/media/${currentDetail.id}/tags/${t.id}`, { method: 'DELETE' });
-      const d = await (await api(`/api/libraries/${currentLib}/media/${currentDetail.id}`)).json();
-      renderMediaTags(d.tags || []);
-      loadTags();
-      renderGallery(true);
-    };
-    mediaTagsEl.appendChild(span);
+    elements.gallery.appendChild(node);
   });
 }
 
-addTagBtn.addEventListener('click', async () => {
-  const name = (newTagNameEl.value || '').trim();
-  if (!name || !currentDetail) return;
-  await api(`/api/libraries/${currentLib}/tags?name=${encodeURIComponent(name)}`, { method: 'POST' });
-  const all = await (await api(`/api/libraries/${currentLib}/tags`)).json();
-  const tag = all.find(t => t.name.toLowerCase() === name.toLowerCase());
-  if (tag) await api(`/api/libraries/${currentLib}/media/${currentDetail.id}/tags`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tagIds: [tag.id] }) });
-  const d = await (await api(`/api/libraries/${currentLib}/media/${currentDetail.id}`)).json();
-  renderMediaTags(d.tags || []);
-  newTagNameEl.value = '';
-  await loadTags();
-  await renderGallery(true);
-});
+async function onUploadFiles(event) {
+  if (!state.currentLibrary) return;
+  const files = Array.from(event.target.files || []);
+  if (files.length === 0) return;
 
-deleteOneBtn.addEventListener('click', async () => {
-  if (!currentDetail) return;
-  await api(`/api/libraries/${currentLib}/media/${currentDetail.id}`, { method: 'DELETE' });
-  modal.classList.add('hidden');
-  await renderGallery(true);
-});
+  const formData = new FormData();
+  files.forEach((file) => formData.append("files", file));
 
-closeModalBtn.addEventListener('click', () => modal.classList.add('hidden'));
-
-deleteSelectedBtn.addEventListener('click', async () => {
-  if (!selected.size) return;
-  await api(`/api/libraries/${currentLib}/media/batch-delete`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: [...selected] }) });
-  selected.clear();
-  await renderGallery(true);
-});
-
-downloadSelectedBtn.addEventListener('click', async () => {
-  if (!selected.size) return;
-  // simple redirect with POST is tricky; open batch via fetch and blob
-  const res = await api(`/api/libraries/${currentLib}/media/batch-download`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: [...selected] }) });
-  const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'media.zip';
-  a.click();
-  URL.revokeObjectURL(url);
-});
-
-libSelect.addEventListener('change', () => { currentLib = libSelect.value; renderGallery(true); loadTags(); });
-newLibraryBtn.addEventListener('click', createLibrary);
-uploadInput.addEventListener('change', (e) => uploadFiles(e.target.files));
-typeFilter.addEventListener('change', () => renderGallery(true));
-searchInput.addEventListener('change', () => renderGallery(true));
-tagModeEl.addEventListener('change', () => renderGallery(true));
-
-(async function init() {
   try {
-    const res = await api('/api/health');
-    const json = await res.json();
-    statusEl.textContent = `OK – libraries root: ${json.libraries_root}`;
-    await loadLibraries();
-    await loadTags();
-  } catch (e) {
-    statusEl.textContent = 'Server not reachable';
+    const response = await fetch(`${apiBase}/libraries/${state.currentLibrary}/media`, {
+      method: "POST",
+      body: formData,
+    });
+    if (!response.ok) throw new Error("Upload failed");
+    event.target.value = "";
+    await Promise.all([loadTags(), reloadMedia()]);
+  } catch (error) {
+    console.error(error);
+    alert("Upload failed");
   }
-})();
+}
 
+function updateSelectionState() {
+  const hasSelection = state.selected.size > 0;
+  elements.deleteSelectedBtn.disabled = !hasSelection;
+  elements.downloadSelectedBtn.disabled = !hasSelection;
+}
 
+async function onDeleteSelected() {
+  if (!state.currentLibrary || state.selected.size === 0) return;
+  if (!confirm(`Delete ${state.selected.size} item(s)?`)) return;
+
+  const ids = Array.from(state.selected);
+  try {
+    const response = await fetch(`${apiBase}/libraries/${state.currentLibrary}/media/delete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids }),
+    });
+    if (!response.ok) throw new Error("Failed to delete");
+    state.selected.clear();
+    await reloadMedia();
+  } catch (error) {
+    console.error(error);
+    alert("Failed to delete items");
+  }
+}
+
+async function onDownloadSelected() {
+  if (!state.currentLibrary || state.selected.size === 0) return;
+  await triggerDownload(Array.from(state.selected));
+}
+
+async function openDetail(mediaId) {
+  if (!state.currentLibrary) return;
+  const response = await fetch(`${apiBase}/libraries/${state.currentLibrary}/media/${mediaId}`);
+  if (!response.ok) {
+    alert("Media not found");
+    return;
+  }
+  const item = await response.json();
+  state.detail = item;
+
+  elements.detailTitle.textContent = item.original_filename;
+  elements.tagEditorInput.value = item.tags.join(", ");
+  renderMetadata(item);
+  renderPreview(item);
+  elements.modal.classList.remove("hidden");
+}
+
+function renderMetadata(item) {
+  elements.metadataList.innerHTML = "";
+  const metadata = {
+    "Media type": item.media_type,
+    "Mime type": item.mime_type,
+    "Imported": formatTimestamp(item.imported_at),
+    "Taken": item.taken_at ? formatTimestamp(item.taken_at) : "Unknown",
+    Size: formatBytes(item.size_bytes),
+    Dimensions: item.width && item.height ? `${item.width}×${item.height}` : "",
+    Camera: [item.camera_make, item.camera_model].filter(Boolean).join(" "),
+    Latitude: item.gps_lat ?? "",
+    Longitude: item.gps_lon ?? "",
+  };
+
+  Object.entries(metadata).forEach(([key, value]) => {
+    if (value === "" || value === null || typeof value === "undefined") return;
+    const dt = document.createElement("dt");
+    dt.textContent = key;
+    const dd = document.createElement("dd");
+    dd.textContent = value;
+    elements.metadataList.appendChild(dt);
+    elements.metadataList.appendChild(dd);
+  });
+}
+
+function renderPreview(item) {
+  elements.detailPreview.innerHTML = "";
+  if (item.media_type === "photo") {
+    const img = document.createElement("img");
+    img.src = `${apiBase}/libraries/${state.currentLibrary}/media/${item.id}/content`;
+    img.alt = item.original_filename;
+    elements.detailPreview.appendChild(img);
+  } else if (item.media_type === "video") {
+    const video = document.createElement("video");
+    video.controls = true;
+    video.src = `${apiBase}/libraries/${state.currentLibrary}/media/${item.id}/content`;
+    elements.detailPreview.appendChild(video);
+  } else {
+    const link = document.createElement("a");
+    link.href = `${apiBase}/libraries/${state.currentLibrary}/media/${item.id}/content`;
+    link.textContent = "Download file";
+    link.target = "_blank";
+    elements.detailPreview.appendChild(link);
+  }
+}
+
+function closeModal() {
+  state.detail = null;
+  elements.modal.classList.add("hidden");
+}
+
+async function onSaveTags() {
+  if (!state.detail) return;
+  const tags = elements.tagEditorInput.value
+    .split(",")
+    .map((tag) => tag.trim())
+    .filter((tag) => tag.length > 0);
+
+  try {
+    const response = await fetch(
+      `${apiBase}/libraries/${state.currentLibrary}/media/${state.detail.id}/tags`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tags }),
+      }
+    );
+    if (!response.ok) throw new Error("Failed to save tags");
+    state.detail.tags = await response.json();
+    await loadTags();
+    await reloadMedia();
+  } catch (error) {
+    console.error(error);
+    alert("Failed to save tags");
+  }
+}
+
+async function onDeleteMedia() {
+  if (!state.detail) return;
+  if (!confirm("Delete this media?")) return;
+  try {
+    const response = await fetch(
+      `${apiBase}/libraries/${state.currentLibrary}/media/${state.detail.id}`,
+      {
+        method: "DELETE",
+      }
+    );
+    if (!response.ok) throw new Error("Failed to delete media");
+    closeModal();
+    await reloadMedia();
+  } catch (error) {
+    console.error(error);
+    alert("Failed to delete media");
+  }
+}
+
+async function onDownloadMedia() {
+  if (!state.detail) return;
+  await triggerDownload([state.detail.id]);
+}
+
+async function triggerDownload(ids) {
+  try {
+    const response = await fetch(`${apiBase}/libraries/${state.currentLibrary}/download`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids }),
+    });
+    if (!response.ok) throw new Error("Download failed");
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "media-download.zip";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error(error);
+    alert("Download failed");
+  }
+}
+
+function debounce(fn, delay) {
+  let timer = null;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn.apply(null, args), delay);
+  };
+}
+
+function formatTimestamp(value) {
+  if (!value) return "";
+  const date = new Date(value * 1000);
+  return date.toLocaleString();
+}
+
+function formatBytes(bytes) {
+  if (!bytes) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let index = 0;
+  let value = bytes;
+  while (value >= 1024 && index < units.length - 1) {
+    value /= 1024;
+    index += 1;
+  }
+  return `${value.toFixed(value < 10 && index > 0 ? 1 : 0)} ${units[index]}`;
+}
